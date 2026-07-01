@@ -10,7 +10,7 @@ const key = process.env.STRIPE_SECRET_KEY
 if (!key) throw new Error('[Stripe] STRIPE_SECRET_KEY is not set.')
 
 const stripe = new Stripe(key, {
-  apiVersion: '2025-05-28.basil',
+  apiVersion: '2026-06-24.dahlia',
   appInfo: {
     name: 'Rich Conflicts',
     version: '1.0.0',
