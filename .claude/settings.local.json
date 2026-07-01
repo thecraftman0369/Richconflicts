@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell($env:PATH)",
+      "PowerShell(Get-Command node -ErrorAction SilentlyContinue; Get-ChildItem \"C:\\\\Program Files\\\\nodejs\" -ErrorAction SilentlyContinue | Select-Object -First 5; Get-ChildItem \"$env:APPDATA\\\\npm\" -ErrorAction SilentlyContinue | Select-Object -First 5; Get-ChildItem \"$env:ProgramFiles\\\\nodejs\" -ErrorAction SilentlyContinue | Select-Object -First 5)",
+      "Bash(mkdir -p \"C:\\\\e-com-website\\\\.claude\")",
+      "mcp__Claude_Preview__preview_start",
+      "PowerShell(\\(Get-Command npm -ErrorAction SilentlyContinue\\).Source; \\(Get-Command npx -ErrorAction SilentlyContinue\\).Source; \\(Get-Command node -ErrorAction SilentlyContinue\\).Source)",
+      "PowerShell(Get-ChildItem \"C:\\\\Program Files\\\\nodejs\" -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"$env:APPDATA\\\\npm\" -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"$env:LOCALAPPDATA\\\\Programs\\\\nodejs\" -ErrorAction SilentlyContinue | Select-Object Name)",
+      "Bash(find /c/Users/conte/AppData/Roaming/nvm -name \"node.exe\" 2>/dev/null | head -3; find /c/Users/conte/AppData/Local/nvm -name \"node.exe\" 2>/dev/null | head -3; ls \"/c/Users/conte/AppData/Roaming/nvm/\" 2>/dev/null)",
+      "PowerShell($claude = \\(Get-Command claude -ErrorAction SilentlyContinue\\).Source; Write-Output \"claude: $claude\"; if \\($claude\\) { Split-Path $claude | Get-ChildItem | Select-Object Name })",
+      "PowerShell(Get-ChildItem \"$env:LOCALAPPDATA\\\\AnthropicClaude\" -Recurse -Filter \"node.exe\" -ErrorAction SilentlyContinue | Select-Object -First 3 FullName; Get-ChildItem \"$env:LOCALAPPDATA\\\\AnthropicClaude\" -ErrorAction SilentlyContinue | Select-Object Name)",
+      "PowerShell(Get-ChildItem \"$env:LOCALAPPDATA\" -Directory | Where-Object { $_.Name -match \"anthropic|claude\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem \"$env:LOCALAPPDATA\\\\Programs\" -Directory -ErrorAction SilentlyContinue | Select-Object Name | Sort-Object Name)",
+      "mcp__ee6af8b5-7afe-42bd-bedd-7cfbe43b569b__get_publishable_keys",
+      "mcp__ee6af8b5-7afe-42bd-bedd-7cfbe43b569b__execute_sql"
+    ]
+  }
+}
