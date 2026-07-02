@@ -845,7 +845,7 @@ function SupportHub({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 h-[580px]">
+    <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 min-h-[400px] md:h-[580px]">
 
       {/* ── Left: sectioned ticket list ── */}
       <div className="flex flex-col border border-rc-border rounded-sm overflow-hidden">
@@ -991,7 +991,7 @@ export default function DashboardPage() {
               }`}
             >
               <Icon size={11} strokeWidth={1.8} />
-              <span className="hidden sm:inline">{label}</span>
+              <span>{label}</span>
             </button>
           ))}
         </div>

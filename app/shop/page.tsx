@@ -122,7 +122,7 @@ export default function ShopPage() {
     <div className="pt-14">
 
       {/* ═══════════════════════ STICKY FILTER BAR ═══════════════════════ */}
-      <div className="sticky top-14 z-30 bg-black/96 backdrop-blur-sm border-b border-rc-border">
+      <div className="sticky top-14 z-30 bg-black border-b border-rc-border">
         <div className="max-w-[1600px] mx-auto px-5 h-12 flex items-center justify-between gap-4">
 
           {/* Category pills */}

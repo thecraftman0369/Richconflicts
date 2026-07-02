@@ -1,18 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BarChart2, DollarSign, Package, BookOpen, Headphones, ShoppingBag, TrendingUp, AlertTriangle } from 'lucide-react'
+import { DollarSign, Package, BookOpen, Headphones, ShoppingBag, TrendingUp, AlertTriangle } from 'lucide-react'
 import { createClient } from '@/app/supabase/client'
 
 type Stat = { label: string; value: string; sub?: string; icon: React.ElementType; color: string }
-
-type RecentOrder = {
-  id: string
-  shipping_full_name: string | null
-  total_price: number
-  status: string
-  created_at: string
-}
 
 type LowProduct = { id: string; name: string; stock: number }
 
@@ -20,7 +12,6 @@ export default function AnalyticsPage() {
   const supabase = createClient()
 
   const [stats, setStats]       = useState<Stat[]>([])
-  const [recent, setRecent]     = useState<RecentOrder[]>([])
   const [lowStock, setLowStock] = useState<LowProduct[]>([])
   const [loading, setLoading]   = useState(true)
 
@@ -53,18 +44,11 @@ export default function AnalyticsPage() {
         { label: 'TOTAL ORDERS',    value: String(orders.length),            sub: 'all time',                          icon: TrendingUp,  color: 'text-cyan-400'    },
       ])
 
-      setRecent(orders.slice(0, 5) as RecentOrder[])
       setLowStock(low as LowProduct[])
       setLoading(false)
     }
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const STATUS_COLORS: Record<string, string> = {
-    pending:   'text-yellow-400', paid: 'text-blue-400',
-    fulfilled: 'text-purple-400', shipped: 'text-cyan-400',
-    delivered: 'text-green-400',  cancelled: 'text-zinc-500',
-  }
 
   if (loading) {
     return (
@@ -75,7 +59,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="p-6 max-w-[1200px]">
+    <div className="p-4 md:p-6 max-w-[1200px]">
       <div className="mb-8">
         <p className="font-mono text-[8px] tracking-[0.25em] text-rc-muted mb-1">MASTER ADMIN</p>
         <h1 className="font-display text-3xl text-white">OVERVIEW</h1>
@@ -95,36 +79,7 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent orders */}
-        <div className="border border-rc-border rounded-sm">
-          <div className="px-5 py-4 border-b border-rc-border">
-            <p className="font-mono text-[9px] tracking-[0.2em] text-white">RECENT ORDERS</p>
-          </div>
-          {recent.length === 0 ? (
-            <p className="font-mono text-[9px] text-rc-muted p-5">No orders yet.</p>
-          ) : (
-            <div className="divide-y divide-rc-border">
-              {recent.map(o => (
-                <div key={o.id} className="px-5 py-3 flex items-center justify-between">
-                  <div>
-                    <p className="font-mono text-[10px] text-white">{o.shipping_full_name ?? 'Guest'}</p>
-                    <p className="font-mono text-[8px] text-rc-muted">
-                      {new Date(o.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-mono text-[10px] text-white">${o.total_price.toFixed(2)}</p>
-                    <p className={`font-mono text-[8px] tracking-[0.12em] ${STATUS_COLORS[o.status] ?? 'text-rc-muted'}`}>
-                      {o.status.toUpperCase()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+      <div className="grid grid-cols-1 gap-6">
         {/* Low stock */}
         <div className="border border-rc-border rounded-sm">
           <div className="px-5 py-4 border-b border-rc-border flex items-center gap-2">

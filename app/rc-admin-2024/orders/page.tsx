@@ -253,7 +253,7 @@ export default function OrdersPage() {
   const allSelected   = displayOrders.length > 0 && selected.size === displayOrders.length
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <p className="font-mono text-[8px] tracking-[0.25em] text-rc-muted mb-1">MASTER ADMIN</p>
@@ -336,7 +336,7 @@ export default function OrdersPage() {
       </AnimatePresence>
 
       {/* Table */}
-      <div className="border border-rc-border rounded-sm overflow-hidden">
+      <div className="border border-rc-border rounded-sm overflow-x-auto">
         {loading ? (
           <div className="py-16 text-center">
             <p className="font-mono text-[10px] text-rc-muted tracking-[0.2em]">LOADING ORDERS...</p>
@@ -346,7 +346,7 @@ export default function OrdersPage() {
             <p className="font-mono text-[10px] text-rc-muted tracking-[0.2em]">NO ORDERS FOUND.</p>
           </div>
         ) : (
-          <table className="w-full">
+          <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b border-rc-border bg-white/[0.02]">
                 <th className="pl-4 pr-2 py-3 w-8">

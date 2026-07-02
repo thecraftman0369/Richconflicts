@@ -49,20 +49,20 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="pt-14 min-h-screen flex items-center justify-center px-5">
+    <div className="pt-14 min-h-screen flex items-center justify-center px-5 py-10">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="w-full max-w-sm"
       >
-        <Link href="/" className="block font-display text-4xl text-white mb-10 hover:opacity-60 transition-opacity">
+        <Link href="/" className="block font-display text-5xl text-white mb-10 hover:opacity-60 transition-opacity">
           RC
         </Link>
 
         <div className="mb-8">
           <p className="font-mono text-[9px] tracking-[0.3em] text-rc-muted mb-2">WELCOME BACK</p>
-          <h1 className="font-display text-4xl text-white">SIGN IN</h1>
+          <h1 className="font-display text-5xl text-white">SIGN IN</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
@@ -152,7 +152,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={status === 'loading'}
-            className="w-full h-12 bg-white text-black font-mono text-[10px] tracking-[0.22em] rounded-sm hover:bg-zinc-100 transition-colors disabled:opacity-60 mt-2"
+            className="w-full h-14 bg-white text-black font-mono text-[11px] tracking-[0.22em] rounded-sm hover:bg-zinc-100 transition-colors disabled:opacity-60 mt-2"
           >
             {status === 'loading' ? 'SIGNING IN...' : 'SIGN IN'}
           </button>
