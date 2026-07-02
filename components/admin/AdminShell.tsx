@@ -44,31 +44,25 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex bg-black min-h-screen">
 
-      {/* Desktop sidebar — always visible */}
-      <div className="hidden md:block">
+      {/* Backdrop — mobile only, behind sidebar */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/70"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Single sidebar — slides in on mobile, always visible on desktop */}
+      <div
+        className={`
+          fixed md:relative inset-y-0 left-0 z-50 md:z-auto
+          transition-transform duration-200 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:translate-x-0
+        `}
+      >
         <AdminSidebar />
       </div>
-
-      {/* Mobile sidebar — slide-over overlay */}
-      {sidebarOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/70"
-            onClick={() => setSidebarOpen(false)}
-          />
-          {/* Sidebar panel */}
-          <div className="relative z-10 flex flex-col">
-            <AdminSidebar />
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="absolute top-3 right-3 p-1 text-rc-muted hover:text-white transition-colors"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -76,11 +70,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         {/* Mobile top bar */}
         <div className="md:hidden flex items-center gap-3 h-12 px-4 border-b border-rc-border bg-black sticky top-0 z-40">
           <button
-            onClick={() => setSidebarOpen(true)}
+            onClick={() => setSidebarOpen((v) => !v)}
             className="p-1 text-rc-muted hover:text-white transition-colors"
             aria-label="Open menu"
           >
-            <Menu size={18} strokeWidth={1.5} />
+            {sidebarOpen ? <X size={18} strokeWidth={1.5} /> : <Menu size={18} strokeWidth={1.5} />}
           </button>
           <span className="font-display text-lg text-white">RC</span>
           <span className="font-mono text-[8px] text-rc-muted tracking-[0.22em] mt-0.5">ADMIN</span>
