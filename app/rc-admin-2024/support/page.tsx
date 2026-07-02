@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import {
   Send, MessageSquare, CheckCircle, Circle, Clock,
   User, ShoppingBag, Mail, Phone, MapPin,
-  UserX, Loader2, RotateCcw,
+  UserX, Loader2, RotateCcw, ArrowLeft,
 } from 'lucide-react'
 import { createClient } from '@/app/supabase/client'
 
@@ -267,15 +267,19 @@ function CustomerPanel({ ticket, token }: { ticket: Ticket; token: string | null
 export default function SupportPage() {
   const supabase = createClient()
 
-  const [tickets,  setTickets]  = useState<Ticket[]>([])
-  const [active,   setActive]   = useState<Ticket | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [reply,    setReply]    = useState('')
-  const [loading,  setLoading]  = useState(true)
-  const [sending,  setSending]  = useState(false)
-  const [adminId,  setAdminId]  = useState<string | null>(null)
-  const [token,    setToken]    = useState<string | null>(null)
+  const [tickets,    setTickets]    = useState<Ticket[]>([])
+  const [active,     setActive]     = useState<Ticket | null>(null)
+  const [messages,   setMessages]   = useState<Message[]>([])
+  const [reply,      setReply]      = useState('')
+  const [loading,    setLoading]    = useState(true)
+  const [sending,    setSending]    = useState(false)
+  const [adminId,    setAdminId]    = useState<string | null>(null)
+  const [token,      setToken]      = useState<string | null>(null)
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  const openTicket = (t: Ticket) => { setActive(t); setMobileView('chat') }
+  const backToList = () => { setActive(null); setMobileView('list') }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -380,10 +384,10 @@ export default function SupportPage() {
   const openCount = tickets.filter(t => t.status === 'open' || t.status === 'in_progress').length
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-[100dvh] overflow-hidden">
 
       {/* ── Ticket list ── */}
-      <div className="w-80 shrink-0 border-r border-rc-border flex flex-col bg-black">
+      <div className={`${mobileView === 'list' ? 'flex' : 'hidden'} md:flex w-full md:w-80 shrink-0 border-r border-rc-border flex-col bg-black`}>
         <div className="px-6 py-5 border-b border-rc-border shrink-0">
           <div className="flex items-center justify-between">
             <div>
@@ -436,7 +440,7 @@ export default function SupportPage() {
                     ) : group.map(t => (
                       <button
                         key={t.id}
-                        onClick={() => setActive(t)}
+                        onClick={() => openTicket(t)}
                         className={`w-full text-left px-6 py-4 border-b border-rc-border transition-colors ${
                           active?.id === t.id
                             ? 'bg-white/[0.06] border-l-2 border-l-white'
@@ -485,66 +489,73 @@ export default function SupportPage() {
 
       {/* ── Main area ── */}
       {!active ? (
-        <div className="flex-1 flex items-center justify-center bg-black">
+        <div className="hidden md:flex flex-1 items-center justify-center bg-black">
           <div className="text-center">
             <MessageSquare size={32} className="text-zinc-700 mx-auto mb-4" strokeWidth={1} />
             <p className="font-mono text-[10px] text-rc-muted tracking-[0.2em]">SELECT A TICKET TO VIEW CONVERSATION</p>
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex min-w-0">
+        <div className={`${mobileView === 'chat' ? 'flex' : 'hidden'} md:flex flex-1 min-w-0`}>
 
           {/* Chat */}
           <div className="flex-1 flex flex-col min-w-0">
 
             {/* Chat header */}
-            <div className="px-6 py-4 border-b border-rc-border flex items-center justify-between gap-4 shrink-0">
-              <div className="min-w-0">
+            <div className="px-4 md:px-6 py-4 border-b border-rc-border flex items-center gap-3 shrink-0">
+              {/* Back — mobile only */}
+              <button
+                onClick={backToList}
+                className="md:hidden shrink-0 p-1 -ml-1 text-rc-muted hover:text-white transition-colors"
+                aria-label="Back to tickets"
+              >
+                <ArrowLeft size={16} strokeWidth={1.5} />
+              </button>
+
+              <div className="min-w-0 flex-1">
                 <p className="font-mono text-[11px] text-white truncate">{active.subject || '(No subject)'}</p>
                 <p className="font-mono text-[8px] text-rc-muted mt-0.5">
                   Opened {new Date(active.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </p>
               </div>
 
-              {/* 3-step status buttons */}
+              {/* Status buttons — icon-only on mobile, icon+label on desktop */}
               <div className="shrink-0 flex items-center gap-2">
-                {/* IN PROCESS — shown when open */}
                 {active.status === 'open' && (
                   <button
                     onClick={() => setStatus(active, 'in_progress')}
-                    className="flex items-center gap-1.5 font-mono text-[8px] tracking-[0.12em] border border-amber-800 text-amber-400 px-3 py-1.5 rounded-sm hover:bg-amber-950/30 transition-colors"
+                    title="Mark In Progress"
+                    className="flex items-center gap-1.5 font-mono text-[8px] tracking-[0.12em] border border-amber-800 text-amber-400 px-2 md:px-3 py-1.5 rounded-sm hover:bg-amber-950/30 transition-colors"
                   >
                     <Loader2 size={10} />
-                    IN PROCESS
+                    <span className="hidden md:inline">IN PROCESS</span>
                   </button>
                 )}
-
-                {/* COMPLETE — shown when open or in_progress */}
                 {(active.status === 'open' || active.status === 'in_progress') && (
                   <button
                     onClick={() => setStatus(active, 'resolved')}
-                    className="flex items-center gap-1.5 font-mono text-[8px] tracking-[0.12em] border border-emerald-900 text-emerald-400 px-3 py-1.5 rounded-sm hover:bg-emerald-950/30 transition-colors"
+                    title="Mark Complete"
+                    className="flex items-center gap-1.5 font-mono text-[8px] tracking-[0.12em] border border-emerald-900 text-emerald-400 px-2 md:px-3 py-1.5 rounded-sm hover:bg-emerald-950/30 transition-colors"
                   >
                     <CheckCircle size={10} />
-                    COMPLETE
+                    <span className="hidden md:inline">COMPLETE</span>
                   </button>
                 )}
-
-                {/* REOPEN — shown when resolved or closed */}
                 {(active.status === 'resolved' || active.status === 'closed') && (
                   <button
                     onClick={() => setStatus(active, 'open')}
-                    className="flex items-center gap-1.5 font-mono text-[8px] tracking-[0.12em] border border-zinc-700 text-zinc-400 px-3 py-1.5 rounded-sm hover:text-white hover:border-zinc-500 transition-colors"
+                    title="Reopen"
+                    className="flex items-center gap-1.5 font-mono text-[8px] tracking-[0.12em] border border-zinc-700 text-zinc-400 px-2 md:px-3 py-1.5 rounded-sm hover:text-white hover:border-zinc-500 transition-colors"
                   >
                     <RotateCcw size={10} />
-                    REOPEN
+                    <span className="hidden md:inline">REOPEN</span>
                   </button>
                 )}
               </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+            <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 md:py-6 space-y-5">
               {messages.length === 0 && (
                 <p className="font-mono text-[9px] text-rc-muted text-center pt-8">No messages yet.</p>
               )}
@@ -570,7 +581,7 @@ export default function SupportPage() {
             </div>
 
             {/* Reply box */}
-            <div className="px-6 py-4 border-t border-rc-border shrink-0">
+            <div className="px-4 md:px-6 py-4 border-t border-rc-border shrink-0">
               {active.status === 'resolved' || active.status === 'closed' ? (
                 <p className="font-mono text-[9px] text-rc-muted text-center tracking-[0.14em] py-1">
                   TICKET {active.status.toUpperCase()} — REOPEN TO REPLY
@@ -597,8 +608,10 @@ export default function SupportPage() {
             </div>
           </div>
 
-          {/* Customer profile panel */}
-          <CustomerPanel ticket={active} token={token} />
+          {/* Customer profile panel — desktop only */}
+          <div className="hidden md:block">
+            <CustomerPanel ticket={active} token={token} />
+          </div>
         </div>
       )}
     </div>
