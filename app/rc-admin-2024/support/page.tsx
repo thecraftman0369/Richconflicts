@@ -27,6 +27,7 @@ type Message = {
   body: string
   is_admin: boolean
   created_at: string
+  read_at: string | null
 }
 
 type CustomerOrder = {
@@ -360,6 +361,14 @@ export default function SupportPage() {
         setTickets(prev => prev.map(t =>
           t.id === msg.ticket_id && !msg.is_admin ? { ...t, preview: msg.body } : t))
       })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'ticket_messages',
+        filter: `ticket_id=eq.${active.id}`,
+      }, payload => {
+        const updated = payload.new as Message
+        setMessages(prev => prev.map(m =>
+          m.id === updated.id ? { ...m, read_at: updated.read_at } : m))
+      })
       .subscribe()
 
     return () => { supabase.removeChannel(ch) }
@@ -580,11 +589,16 @@ export default function SupportPage() {
                     }`}>
                       <p className="font-mono text-[11px] leading-relaxed">{msg.body}</p>
                     </div>
-                    <p className={`font-mono text-[7px] mt-1.5 tracking-[0.1em] ${
-                      msg.is_admin ? 'text-right text-zinc-500' : 'text-zinc-500'
-                    }`}>
-                      {msg.is_admin ? 'RC SUPPORT' : 'CUSTOMER'} · {new Date(msg.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    <div className={`flex items-center gap-2 mt-1.5 ${msg.is_admin ? 'justify-end' : 'justify-start'}`}>
+                      <p className="font-mono text-[7px] tracking-[0.1em] text-zinc-500">
+                        {msg.is_admin ? 'RC SUPPORT' : 'CUSTOMER'} · {new Date(msg.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      {msg.is_admin && (
+                        <p className={`font-mono text-[7px] tracking-[0.1em] ${msg.read_at ? 'text-emerald-500' : 'text-zinc-700'}`}>
+                          {msg.read_at ? '✓ READ' : 'SENT'}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

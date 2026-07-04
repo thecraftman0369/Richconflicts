@@ -16,6 +16,7 @@ export type TicketMessage = {
   body: string
   is_admin: boolean
   created_at: string
+  read_at: string | null
 }
 
 type Props = {
@@ -23,6 +24,7 @@ type Props = {
   ticketSubject: string
   userId: string
   isClosed?: boolean
+  onMessagesRead?: () => void
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -78,6 +80,7 @@ export default function CustomerTicketChat({
   ticketSubject,
   userId,
   isClosed = false,
+  onMessagesRead,
 }: Props) {
   const supabase   = createClient()
   const bottomRef  = useRef<HTMLDivElement>(null)
@@ -111,6 +114,17 @@ export default function CustomerTicketChat({
       if (!mounted) return
       if (!error && data) {
         setMessages(data as TicketMessage[])
+        // Mark all unread admin messages as read
+        const unreadIds = (data as TicketMessage[])
+          .filter(m => m.is_admin && !m.read_at)
+          .map(m => m.id)
+        if (unreadIds.length > 0) {
+          await supabase
+            .from('ticket_messages')
+            .update({ read_at: new Date().toISOString() })
+            .in('id', unreadIds)
+          onMessagesRead?.()
+        }
       }
       setLoading(false)
     }
@@ -129,10 +143,19 @@ export default function CustomerTicketChat({
         },
         (payload) => {
           if (!mounted) return
+          const msg = payload.new as TicketMessage
           setMessages((prev) => {
-            const exists = prev.some((m) => m.id === payload.new.id)
-            return exists ? prev : [...prev, payload.new]
+            const exists = prev.some((m) => m.id === msg.id)
+            return exists ? prev : [...prev, msg]
           })
+          // Mark incoming admin message as read immediately (customer is viewing)
+          if (msg.is_admin && !msg.read_at) {
+            supabase
+              .from('ticket_messages')
+              .update({ read_at: new Date().toISOString() })
+              .eq('id', msg.id)
+              .then(() => { onMessagesRead?.() })
+          }
         },
       )
       .subscribe((status) => {

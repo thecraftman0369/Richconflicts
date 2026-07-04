@@ -838,12 +838,13 @@ const TICKET_SECTIONS: TicketSection[] = [
 ]
 
 function TicketSectionGroup({
-  section, tickets, active, composing, onSelect,
+  section, tickets, active, composing, unreadIds, onSelect,
 }: {
   section: TicketSection
   tickets: Ticket[]
   active: Ticket | null
   composing: boolean
+  unreadIds: Set<string>
   onSelect: (t: Ticket) => void
 }) {
   const [collapsed, setCollapsed] = useState(section.label === 'COMPLETE')
@@ -881,9 +882,14 @@ function TicketSectionGroup({
                     }`}>
                       {ticket.subject}
                     </p>
-                    {!composing && active?.id === ticket.id && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0 mt-1" />
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                      {unreadIds.has(ticket.id) && (
+                        <span className="w-2 h-2 rounded-full bg-white shrink-0" title="Unread message" />
+                      )}
+                      {!composing && active?.id === ticket.id && !unreadIds.has(ticket.id) && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/40 shrink-0" />
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={ticket.status} />
@@ -904,15 +910,18 @@ function TicketSectionGroup({
 function SupportHub({
   userId,
   initialTicketId,
+  onUnreadChange,
 }: {
   userId: string
   initialTicketId?: string | null
+  onUnreadChange?: (count: number) => void
 }) {
   const supabase = createClient()
-  const [tickets, setTickets]       = useState<Ticket[]>([])
-  const [active, setActive]         = useState<Ticket | null>(null)
-  const [loadingTickets, setLoading] = useState(true)
-  const [composing, setComposing]   = useState(false)
+  const [tickets, setTickets]           = useState<Ticket[]>([])
+  const [active, setActive]             = useState<Ticket | null>(null)
+  const [loadingTickets, setLoading]    = useState(true)
+  const [composing, setComposing]       = useState(false)
+  const [unreadIds, setUnreadIds]       = useState<Set<string>>(new Set())
   // Mobile: show 'list' or 'chat'
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
 
@@ -922,7 +931,7 @@ function SupportHub({
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         const t = (data ?? []) as Ticket[]
         setTickets(t)
         if (initialTicketId) {
@@ -931,6 +940,18 @@ function SupportHub({
         } else {
           const firstActive = t.find(tk => tk.status === 'open' || tk.status === 'in_progress')
           setActive(firstActive ?? t[0] ?? null)
+        }
+        // Fetch which tickets have unread admin messages
+        if (t.length > 0) {
+          const { data: unread } = await supabase
+            .from('ticket_messages')
+            .select('ticket_id')
+            .eq('is_admin', true)
+            .is('read_at', null)
+            .in('ticket_id', t.map(tk => tk.id))
+          const ids = new Set((unread ?? []).map(m => m.ticket_id as string))
+          setUnreadIds(ids)
+          onUnreadChange?.(ids.size)
         }
         setLoading(false)
       })
@@ -943,6 +964,20 @@ function SupportHub({
           setActive(prev => prev?.id === payload.new.id ? { ...prev, ...(payload.new as Ticket) } : prev)
         }
       )
+      // New admin message → mark ticket as unread if chat not open
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ticket_messages' },
+        payload => {
+          const msg = payload.new as { ticket_id: string; is_admin: boolean; read_at: string | null }
+          if (msg.is_admin && !msg.read_at) {
+            setUnreadIds(prev => {
+              const next = new Set(prev)
+              next.add(msg.ticket_id)
+              onUnreadChange?.(next.size)
+              return next
+            })
+          }
+        }
+      )
       .subscribe()
 
     return () => { supabase.removeChannel(ch) }
@@ -952,6 +987,13 @@ function SupportHub({
     setActive(t)
     setComposing(false)
     setMobileView('chat')
+    // Optimistically clear unread for this ticket (CustomerTicketChat will mark DB read)
+    setUnreadIds(prev => {
+      const next = new Set(prev)
+      next.delete(t.id)
+      onUnreadChange?.(next.size)
+      return next
+    })
   }
 
   const handleCreated = (ticket: Ticket) => {
@@ -990,6 +1032,14 @@ function SupportHub({
               ticketSubject={active.subject}
               userId={userId}
               isClosed={active.status === 'closed' || active.status === 'resolved'}
+              onMessagesRead={() => {
+                setUnreadIds(prev => {
+                  const next = new Set(prev)
+                  next.delete(active.id)
+                  onUnreadChange?.(next.size)
+                  return next
+                })
+              }}
             />
           </div>
         </div>
@@ -1057,6 +1107,7 @@ function SupportHub({
                     tickets={tickets}
                     active={active}
                     composing={composing}
+                    unreadIds={unreadIds}
                     onSelect={openTicket}
                   />
                 ))
@@ -1089,7 +1140,8 @@ export default function DashboardPage() {
   const [tab, setTab]                       = useState<Tab>('profile')
   const [userId, setUserId]                 = useState<string | null>(null)
   const [authLoading, setAuthLoading]       = useState(true)
-  const [supportTicketId, setSupportTicketId] = useState<string | null>(null)
+  const [supportTicketId, setSupportTicketId]     = useState<string | null>(null)
+  const [supportUnreadCount, setSupportUnreadCount] = useState(0)
 
   useEffect(() => {
     const supabase = createClient()
@@ -1162,6 +1214,11 @@ export default function DashboardPage() {
             >
               <Icon size={11} strokeWidth={1.8} />
               <span>{label}</span>
+              {id === 'support' && supportUnreadCount > 0 && (
+                <span className="w-4 h-4 bg-white text-black font-mono text-[7px] font-bold rounded-full flex items-center justify-center leading-none">
+                  {supportUnreadCount > 9 ? '9+' : supportUnreadCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -1184,6 +1241,7 @@ export default function DashboardPage() {
                 key={supportTicketId ?? 'hub'}
                 userId={userId}
                 initialTicketId={supportTicketId}
+                onUnreadChange={setSupportUnreadCount}
               />
             )}
           </motion.div>
