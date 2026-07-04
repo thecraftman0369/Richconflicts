@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Package, DollarSign, Clock, ChevronDown, Truck, CheckSquare, Square, X } from 'lucide-react'
+import { RefreshCw, Package, DollarSign, Clock, ChevronDown, Truck, CheckSquare, Square, X, Eye, EyeOff } from 'lucide-react'
+import { maskEmail } from '@/app/lib/utils'
 import { createClient } from '@/app/supabase/client'
 
 type OrderStatus = 'pending' | 'paid' | 'fulfilled' | 'shipped' | 'delivered' | 'cancelled'
@@ -50,10 +51,11 @@ function OrderRow({
   onUpdate: (id: string, updates: Partial<AdminOrder>) => void
 }) {
   const supabase = createClient()
-  const [open,     setOpen]     = useState(false)
-  const [saving,   setSaving]   = useState(false)
-  const [tracking, setTracking] = useState(order.tracking_number ?? '')
-  const [carrier,  setCarrier]  = useState(order.carrier ?? '')
+  const [open,          setOpen]          = useState(false)
+  const [saving,        setSaving]        = useState(false)
+  const [tracking,      setTracking]      = useState(order.tracking_number ?? '')
+  const [carrier,       setCarrier]       = useState(order.carrier ?? '')
+  const [emailRevealed, setEmailRevealed] = useState(false)
 
   const updateStatus = async (status: OrderStatus) => {
     setSaving(true)
@@ -94,7 +96,11 @@ function OrderRow({
           onClick={() => setOpen(v => !v)}
         >
           {order.shipping_full_name ?? '—'}
-          <span className="block text-rc-muted text-[8px]">{order.shipping_email ?? ''}</span>
+          {order.shipping_email && (
+            <span className="block text-rc-muted text-[8px]">
+              {emailRevealed ? order.shipping_email : maskEmail(order.shipping_email)}
+            </span>
+          )}
         </td>
         <td className="px-4 py-3 font-mono text-[10px] text-white cursor-pointer" onClick={() => setOpen(v => !v)}>
           ${order.total_price.toFixed(2)}
@@ -126,7 +132,18 @@ function OrderRow({
                 <p className="font-mono text-[9px] text-zinc-400">{order.shipping_address}</p>
                 <p className="font-mono text-[9px] text-zinc-400">{order.shipping_city} {order.shipping_zip}</p>
                 <p className="font-mono text-[9px] text-zinc-400">{order.shipping_country}</p>
-                {order.shipping_email && <p className="font-mono text-[9px] text-rc-muted mt-1">{order.shipping_email}</p>}
+                {order.shipping_email && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setEmailRevealed(v => !v) }}
+                    className="flex items-center gap-1.5 font-mono text-[9px] text-rc-muted hover:text-white transition-colors mt-1 group"
+                  >
+                    {emailRevealed ? order.shipping_email : maskEmail(order.shipping_email)}
+                    {emailRevealed
+                      ? <EyeOff size={9} className="shrink-0" />
+                      : <Eye size={9} className="shrink-0 opacity-50 group-hover:opacity-100" />
+                    }
+                  </button>
+                )}
               </div>
 
               <div>

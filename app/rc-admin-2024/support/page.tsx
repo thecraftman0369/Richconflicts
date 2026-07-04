@@ -4,8 +4,9 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import {
   Send, MessageSquare, CheckCircle, Circle, Clock,
   User, ShoppingBag, Mail, Phone, MapPin,
-  UserX, Loader2, RotateCcw, ArrowLeft,
+  UserX, Loader2, RotateCcw, ArrowLeft, Eye, EyeOff,
 } from 'lucide-react'
+import { maskEmail } from '@/app/lib/utils'
 import { createClient } from '@/app/supabase/client'
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
@@ -74,8 +75,9 @@ function StatusPill({ status }: { status: string }) {
 
 /* ── customer profile panel ── */
 function CustomerPanel({ ticket, token }: { ticket: Ticket; token: string | null }) {
-  const [data, setData]       = useState<CustomerProfile | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [data,          setData]          = useState<CustomerProfile | null>(null)
+  const [loading,       setLoading]       = useState(false)
+  const [emailRevealed, setEmailRevealed] = useState(false)
 
   const fetchProfile = useCallback(async () => {
     if (!ticket.user_id || !token) return
@@ -174,7 +176,16 @@ function CustomerPanel({ ticket, token }: { ticket: Ticket; token: string | null
           {email && (
             <div className="flex items-start gap-2">
               <Mail size={10} className="text-rc-muted shrink-0 mt-0.5" strokeWidth={1.5} />
-              <span className="font-mono text-[9px] text-white break-all leading-snug">{email}</span>
+              <button
+                onClick={() => setEmailRevealed(v => !v)}
+                className="flex items-center gap-1.5 font-mono text-[9px] text-white break-all leading-snug hover:text-white/70 transition-colors text-left group"
+              >
+                {emailRevealed ? email : maskEmail(email)}
+                {emailRevealed
+                  ? <EyeOff size={9} className="shrink-0 text-rc-muted" />
+                  : <Eye size={9} className="shrink-0 text-rc-muted opacity-50 group-hover:opacity-100" />
+                }
+              </button>
             </div>
           )}
           {phone && (
