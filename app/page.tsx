@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import ProductCard from '@/components/product/ProductCard'
+import NewsletterBanner from '@/components/newsletter/NewsletterBanner'
 import { createClient } from '@/app/supabase/client'
 import type { Product } from '@/app/lib/types'
 
@@ -138,12 +139,12 @@ export default function HomePage() {
             SHOP THE DROP
             <ArrowRight size={11} strokeWidth={1.5} />
           </Link>
-          <Link
-            href="/drops"
+          <a
+            href="#newsletter"
             className="font-mono text-[10px] text-rc-muted tracking-[0.22em] hover:text-white transition-colors"
           >
-            VIEW DROPS
-          </Link>
+            JOIN THE LIST
+          </a>
         </motion.div>
       </section>
 
@@ -243,6 +244,11 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ═══════════════════════ NEWSLETTER ═══════════════════════ */}
+      <div id="newsletter">
+        <NewsletterBanner />
+      </div>
 
       {/* ═══════════════════════ BLOG PREVIEW ═══════════════════════ */}
       <section className="py-14">

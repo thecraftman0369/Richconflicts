@@ -27,7 +27,7 @@ export default function RegisterPage() {
     setErrorMsg('')
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
       options: {
@@ -40,6 +40,14 @@ export default function RegisterPage() {
       setErrorMsg(error.message)
       return
     }
+
+    // Auto-subscribe to newsletter — silent, never blocks registration
+    await supabase
+      .from('newsletter_subscribers')
+      .upsert(
+        { email: form.email.trim().toLowerCase(), user_id: data.user?.id ?? null },
+        { onConflict: 'email', ignoreDuplicates: true }
+      )
 
     setStatus('done')
   }
