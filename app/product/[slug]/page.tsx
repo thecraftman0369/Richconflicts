@@ -49,6 +49,19 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const [detailsOpen,  setDetailsOpen]  = useState(false)
   const [sizeError,    setSizeError]    = useState(false)
   const [addedToCart,  setAddedToCart]  = useState(false)
+  const [ctaInView,    setCtaInView]    = useState(true)
+  const ctaRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const el = ctaRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setCtaInView(entry.isIntersecting),
+      { threshold: 0 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [product])
 
   useEffect(() => {
     supabase
@@ -380,6 +393,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
             {/* CTA buttons */}
             <div className="flex flex-col gap-2 mb-6">
               <button
+                ref={ctaRef}
                 onClick={handleAddToCart}
                 disabled={soldOut}
                 className={`w-full h-12 font-mono text-[10px] tracking-[0.22em] rounded-sm transition-all duration-200 ${
@@ -443,6 +457,34 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
 
         </div>
       </div>
+
+      {/* ── Sticky mobile buy bar — appears when main CTA scrolls off screen ── */}
+      <AnimatePresence>
+        {!ctaInView && !soldOut && (
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+            className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-rc-border px-4 py-3 flex items-center gap-4"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="font-mono text-[10px] text-white truncate leading-snug">{product.name}</p>
+              <p className="font-mono text-[11px] text-white mt-0.5">${product.price.toFixed(2)}</p>
+            </div>
+            <button
+              onClick={handleAddToCart}
+              className="shrink-0 h-11 px-6 bg-white text-black font-mono text-[10px] tracking-[0.2em] rounded-sm hover:bg-zinc-100 active:bg-zinc-200 transition-colors whitespace-nowrap"
+            >
+              {addedToCart
+                ? '✓ ADDED'
+                : selectedSize
+                  ? `ADD — ${selectedSize}`
+                  : 'ADD TO CART'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

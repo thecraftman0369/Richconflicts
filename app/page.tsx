@@ -245,6 +245,38 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ═══════════════════════ ACCOUNT CTA ═══════════════════════ */}
+      <section className="py-14 border-b border-rc-border">
+        <div className="max-w-[1600px] mx-auto px-5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+            <div>
+              <p className="font-mono text-[9px] tracking-[0.32em] text-rc-muted mb-3">MEMBERSHIP</p>
+              <h2 className="font-display leading-none text-white mb-3"
+                style={{ fontSize: 'clamp(2rem, 5vw, 4rem)' }}>
+                JOIN THE<br />INNER CIRCLE
+              </h2>
+              <p className="font-mono text-[11px] text-zinc-400 leading-relaxed max-w-sm">
+                Order tracking, early drop access, and member-only releases. Free to join.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+              <Link
+                href="/auth/register"
+                className="h-12 px-8 bg-white text-black font-mono text-[10px] tracking-[0.22em] rounded-sm hover:bg-zinc-100 transition-colors flex items-center justify-center"
+              >
+                CREATE ACCOUNT
+              </Link>
+              <Link
+                href="/auth/login"
+                className="h-12 px-8 border border-rc-border text-white font-mono text-[10px] tracking-[0.22em] rounded-sm hover:border-zinc-500 transition-colors flex items-center justify-center"
+              >
+                SIGN IN
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ═══════════════════════ NEWSLETTER ═══════════════════════ */}
       <div id="newsletter">
         <NewsletterBanner />

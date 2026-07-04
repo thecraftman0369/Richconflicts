@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SlidersHorizontal, ChevronDown, X } from 'lucide-react'
+import { SlidersHorizontal, ChevronDown, X, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 import ProductCard from '@/components/product/ProductCard'
 import { createClient } from '@/app/supabase/client'
 import type { Product } from '@/app/lib/types'
@@ -251,6 +252,22 @@ export default function ShopPage() {
             )}
           </AnimatePresence>
         )}
+      </div>
+
+      {/* ═══════════════════════ SHOP NEWSLETTER CTA ═══════════════════════ */}
+      <div className="border-t border-rc-border bg-rc-subtle">
+        <div className="max-w-[1600px] mx-auto px-5 py-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div>
+            <p className="font-mono text-[9px] tracking-[0.28em] text-rc-muted mb-1">NEVER MISS A DROP</p>
+            <p className="font-display text-2xl md:text-3xl text-white">GET DROP ALERTS FIRST.</p>
+          </div>
+          <Link
+            href="/#newsletter"
+            className="shrink-0 h-11 px-7 border border-white text-white font-mono text-[10px] tracking-[0.2em] rounded-sm hover:bg-white hover:text-black transition-all duration-200 flex items-center gap-2"
+          >
+            JOIN THE LIST <ArrowRight size={10} />
+          </Link>
+        </div>
       </div>
     </div>
   )

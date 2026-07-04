@@ -159,38 +159,57 @@ export default function CartDrawer() {
             {/* Footer — only when cart has items */}
             {items.length > 0 && (
               <div className="shrink-0 border-t border-rc-border p-5 space-y-3">
+
+                {/* Free shipping progress bar */}
+                {subtotal < 150 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="font-mono text-[8px] text-rc-muted tracking-[0.08em]">
+                        FREE SHIPPING PROGRESS
+                      </p>
+                      <p className="font-mono text-[8px] text-white tracking-[0.08em]">
+                        ${(150 - subtotal).toFixed(0)} away
+                      </p>
+                    </div>
+                    <div className="h-0.5 bg-rc-border rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-white transition-all duration-500 rounded-full"
+                        style={{ width: `${Math.min((subtotal / 150) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {subtotal >= 150 && (
+                  <p className="font-mono text-[8px] text-emerald-400 tracking-[0.08em]">
+                    ✓ FREE SHIPPING UNLOCKED
+                  </p>
+                )}
+
                 {/* Order lines */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="font-mono text-[9px] text-rc-muted tracking-[0.15em]">SUBTOTAL</p>
-                    <p className="font-mono text-[11px] text-white">${subtotal.toFixed(0)}</p>
+                    <p className="font-mono text-[11px] text-white">${subtotal.toFixed(2)}</p>
                   </div>
                   <div className="flex items-center justify-between">
-                    <p className="font-mono text-[9px] text-rc-muted tracking-[0.15em]">
-                      SHIPPING
-                    </p>
+                    <p className="font-mono text-[9px] text-rc-muted tracking-[0.15em]">SHIPPING</p>
                     <p className="font-mono text-[11px] text-white">
                       {shipping === 0 ? 'FREE' : `$${shipping.toFixed(2)}`}
                     </p>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-rc-border">
                     <p className="font-mono text-[10px] text-white tracking-[0.15em]">TOTAL</p>
-                    <p className="font-mono text-[14px] text-white">${total.toFixed(0)}</p>
+                    <p className="font-mono text-[14px] text-white">${total.toFixed(2)}</p>
                   </div>
                 </div>
-
-                {subtotal < 150 && (
-                  <p className="font-mono text-[8px] text-rc-muted tracking-[0.08em]">
-                    Add ${(150 - subtotal).toFixed(0)} more for free shipping
-                  </p>
-                )}
 
                 <Link
                   href="/cart"
                   onClick={closeCart}
-                  className="flex items-center justify-center w-full h-12 bg-white text-black font-mono text-[10px] tracking-[0.22em] rounded-sm hover:bg-zinc-100 transition-colors"
+                  className="flex flex-col items-center justify-center w-full h-14 bg-white text-black font-mono rounded-sm hover:bg-zinc-100 transition-colors"
                 >
-                  CHECKOUT
+                  <span className="text-[10px] tracking-[0.22em]">CHECKOUT</span>
+                  <span className="text-[7px] tracking-[0.15em] text-zinc-500 mt-0.5">SECURE · FREE SHIPPING OVER $150</span>
                 </Link>
 
                 <button
