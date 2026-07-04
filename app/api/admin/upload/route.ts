@@ -31,8 +31,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid file type' }, { status: 415 })
   }
 
-  const ext  = file.name.split('.').pop() ?? 'jpg'
-  const path = `${crypto.randomUUID()}.${ext}`
+  const ext    = file.name.split('.').pop() ?? 'jpg'
+  const folder = new URL(req.url).searchParams.get('folder')
+  const uuid   = crypto.randomUUID()
+  const path   = folder ? `${folder}/${uuid}.${ext}` : `${uuid}.${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
 
   const { error: uploadError } = await supabaseAdmin.storage

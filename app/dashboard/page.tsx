@@ -910,20 +910,17 @@ function TicketSectionGroup({
 function SupportHub({
   userId,
   initialTicketId,
-  onUnreadChange,
 }: {
   userId: string
   initialTicketId?: string | null
-  onUnreadChange?: (count: number) => void
 }) {
   const supabase = createClient()
-  const [tickets, setTickets]           = useState<Ticket[]>([])
-  const [active, setActive]             = useState<Ticket | null>(null)
-  const [loadingTickets, setLoading]    = useState(true)
-  const [composing, setComposing]       = useState(false)
-  const [unreadIds, setUnreadIds]       = useState<Set<string>>(new Set())
-  // Mobile: show 'list' or 'chat'
-  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
+  const [tickets, setTickets]        = useState<Ticket[]>([])
+  const [active, setActive]          = useState<Ticket | null>(null)
+  const [loadingTickets, setLoading] = useState(true)
+  const [composing, setComposing]    = useState(false)
+  const [unreadIds, setUnreadIds]    = useState<Set<string>>(new Set())
+  const [mobileView, setMobileView]  = useState<'list' | 'chat'>('list')
 
   useEffect(() => {
     supabase
@@ -951,7 +948,6 @@ function SupportHub({
             .in('ticket_id', t.map(tk => tk.id))
           const ids = new Set((unread ?? []).map(m => m.ticket_id as string))
           setUnreadIds(ids)
-          onUnreadChange?.(ids.size)
         }
         setLoading(false)
       })
@@ -972,7 +968,6 @@ function SupportHub({
             setUnreadIds(prev => {
               const next = new Set(prev)
               next.add(msg.ticket_id)
-              onUnreadChange?.(next.size)
               return next
             })
           }
@@ -991,7 +986,6 @@ function SupportHub({
     setUnreadIds(prev => {
       const next = new Set(prev)
       next.delete(t.id)
-      onUnreadChange?.(next.size)
       return next
     })
   }
@@ -1036,7 +1030,6 @@ function SupportHub({
                 setUnreadIds(prev => {
                   const next = new Set(prev)
                   next.delete(active.id)
-                  onUnreadChange?.(next.size)
                   return next
                 })
               }}
@@ -1140,7 +1133,7 @@ export default function DashboardPage() {
   const [tab, setTab]                       = useState<Tab>('profile')
   const [userId, setUserId]                 = useState<string | null>(null)
   const [authLoading, setAuthLoading]       = useState(true)
-  const [supportTicketId, setSupportTicketId]     = useState<string | null>(null)
+  const [supportTicketId, setSupportTicketId]       = useState<string | null>(null)
   const [supportUnreadCount, setSupportUnreadCount] = useState(0)
 
   useEffect(() => {
@@ -1156,6 +1149,42 @@ export default function DashboardPage() {
       setAuthLoading(false)
     })
   }, [router])
+
+  // Independent unread count — owned entirely by DashboardPage, no child setState calls
+  useEffect(() => {
+    if (!userId) return
+    const supabase = createClient()
+
+    const fetchCount = async () => {
+      const { data } = await supabase
+        .from('ticket_messages')
+        .select('ticket_id')
+        .eq('is_admin', true)
+        .is('read_at', null)
+      const unique = new Set((data ?? []).map((m: { ticket_id: string }) => m.ticket_id))
+      setSupportUnreadCount(unique.size)
+    }
+
+    fetchCount()
+
+    // Re-fetch on any message insert or read receipt update
+    const ch = supabase.channel('dashboard-unread-badge')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ticket_messages' },
+        payload => {
+          const msg = payload.new as { is_admin: boolean; read_at: string | null }
+          if (msg.is_admin && !msg.read_at) fetchCount()
+        }
+      )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ticket_messages' },
+        payload => {
+          const updated = payload.new as { is_admin: boolean; read_at: string | null }
+          if (updated.is_admin && updated.read_at) fetchCount()
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(ch) }
+  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchToSupport = (ticketId: string) => {
     setSupportTicketId(ticketId)
@@ -1226,7 +1255,7 @@ export default function DashboardPage() {
 
       {/* Tab content */}
       <div className="max-w-[1100px] mx-auto px-5 py-8">
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           <motion.div
             key={tab}
             initial={{ opacity: 0, y: 8 }}
@@ -1238,10 +1267,8 @@ export default function DashboardPage() {
             {tab === 'orders'  && <OrdersLedger userId={userId} onSwitchToSupport={switchToSupport} />}
             {tab === 'support' && (
               <SupportHub
-                key={supportTicketId ?? 'hub'}
                 userId={userId}
                 initialTicketId={supportTicketId}
-                onUnreadChange={setSupportUnreadCount}
               />
             )}
           </motion.div>

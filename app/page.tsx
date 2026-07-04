@@ -54,11 +54,12 @@ export default function HomePage() {
   const [setsCount, setSetsCount] = useState(0)
 
   useEffect(() => {
-    supabase.from('products').select('*').then(({ data }) => {
+    supabase.from('products').select('*').order('sort_order', { ascending: true }).then(({ data }) => {
       const all = (data ?? []) as DBProduct[]
       const products = all.map(toProduct)
       setAllCount(products.length)
       setSetsCount(products.filter(p => p.category === 'sweatsuits' || p.categories?.includes('sweatsuits')).length)
+      // Featured section respects admin sort order — first 4 featured/new products
       const feat = products.filter(p => p.isNew || p.featured).slice(0, 4)
       setFeatured(feat.length ? feat : products.slice(0, 4))
     })

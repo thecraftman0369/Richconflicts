@@ -64,9 +64,9 @@ export default function ShopPage() {
   const [sortOpen,       setSortOpen]       = useState(false)
   const sortRef = useRef<HTMLDivElement>(null)
 
-  // Fetch products from Supabase
+  // Fetch products from Supabase — ordered by admin-set sort_order
   useEffect(() => {
-    supabase.from('products').select('*').then(({ data }) => {
+    supabase.from('products').select('*').order('sort_order', { ascending: true }).then(({ data }) => {
       setDbProducts((data ?? []).map(p => toProduct(p as DBProduct)))
       setLoadingProducts(false)
     })
@@ -113,7 +113,7 @@ export default function ShopPage() {
       if (sortValue === 'price-asc')  return a.price - b.price
       if (sortValue === 'price-desc') return b.price - a.price
       if (sortValue === 'alpha')      return a.name.localeCompare(b.name)
-      return 0
+      return 0 // 'new' — preserves the sort_order from the fetch
     })
   }, [filtered, sortValue])
 
