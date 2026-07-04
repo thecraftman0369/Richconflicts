@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   User, ShoppingBag, MessageSquare,
   ChevronDown, ChevronUp, Plus, X,
   CheckCircle2, AlertCircle, LogOut, Send,
+  Camera, ArrowLeft, Mail,
 } from 'lucide-react'
+import Image from 'next/image'
 import { createClient } from '@/app/supabase/client'
 import CustomerTicketChat from '@/components/CustomerTicketChat'
 
@@ -27,6 +29,7 @@ type Profile = {
   email:            string
   phone:            string
   shipping_address: ShippingAddress
+  avatar_url:       string | null
 }
 
 type OrderItem = { name: string; size: string; quantity: number; price: number }
@@ -62,6 +65,7 @@ const MOCK_PROFILE: Profile = {
   id:    'mock-user-id',
   email: 'customer@richconflicts.com',
   phone: '+44 7700 900000',
+  avatar_url: null,
   shipping_address: {
     line1: '14 Conflict House', line2: 'Shoreditch',
     city:  'London', postcode: 'E1 6RF', country: 'United Kingdom',
@@ -214,8 +218,10 @@ function ProfilePanel({ userId }: { userId: string }) {
 
   const EMPTY_ADDRESS: ShippingAddress = { line1: '', line2: '', city: '', postcode: '', country: 'United Kingdom' }
   const [form, setForm] = useState<Profile>({ ...MOCK_PROFILE, id: userId })
-  const [saving, setSaving]     = useState(false)
-  const [feedback, setFeedback] = useState<{ kind: FeedbackKind; msg: string } | null>(null)
+  const [saving, setSaving]       = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [feedback, setFeedback]   = useState<{ kind: FeedbackKind; msg: string } | null>(null)
+  const avatarInputRef            = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     supabase
@@ -226,13 +232,11 @@ function ProfilePanel({ userId }: { userId: string }) {
       .then(({ data }) => {
         if (data) {
           setForm({
-            id:    data.id,
-            email: data.email ?? '',
-            phone: data.phone ?? '',
-            shipping_address: {
-              ...EMPTY_ADDRESS,
-              ...(data.shipping_address ?? {}),
-            },
+            id:         data.id,
+            email:      data.email ?? '',
+            phone:      data.phone ?? '',
+            avatar_url: data.avatar_url ?? null,
+            shipping_address: { ...EMPTY_ADDRESS, ...(data.shipping_address ?? {}) },
           })
         }
       })
@@ -248,6 +252,32 @@ function ProfilePanel({ userId }: { userId: string }) {
         ...p,
         shipping_address: { ...p.shipping_address, [field]: e.target.value },
       }))
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setFeedback(null)
+
+    const ext  = file.name.split('.').pop() ?? 'jpg'
+    const path = `${userId}/avatar.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, contentType: file.type })
+
+    if (uploadError) {
+      setFeedback({ kind: 'error', msg: 'Photo upload failed. Please try again.' })
+      setUploading(false)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+    await supabase.from('profiles').upsert({ id: userId, avatar_url: publicUrl })
+    setForm((p) => ({ ...p, avatar_url: publicUrl }))
+    setUploading(false)
+    setFeedback({ kind: 'success', msg: 'Profile photo updated.' })
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -273,6 +303,45 @@ function ProfilePanel({ userId }: { userId: string }) {
           <Feedback kind={feedback.kind} message={feedback.msg} onDismiss={() => setFeedback(null)} />
         )}
       </AnimatePresence>
+
+      {/* Avatar */}
+      <div>
+        <SectionTitle>PROFILE PHOTO</SectionTitle>
+        <div className="flex items-center gap-5">
+          <div className="relative w-20 h-20 rounded-full border border-rc-border overflow-hidden bg-zinc-900 shrink-0">
+            {form.avatar_url ? (
+              <Image src={form.avatar_url} alt="Profile photo" fill className="object-cover" sizes="80px" />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="font-display text-2xl text-zinc-700 select-none">RC</span>
+              </div>
+            )}
+            {uploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                <div className="w-5 h-5 border border-white/30 border-t-white rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+          <div>
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-2 h-9 px-4 border border-rc-border text-rc-muted font-mono text-[9px] tracking-[0.18em] rounded-sm hover:border-zinc-500 hover:text-white transition-colors disabled:opacity-50"
+            >
+              <Camera size={11} />
+              {uploading ? 'UPLOADING…' : 'UPLOAD PHOTO'}
+            </button>
+            <p className="font-mono text-[8px] text-zinc-700 mt-2 tracking-[0.1em]">JPG, PNG, WEBP · MAX 5MB</p>
+          </div>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleAvatarUpload}
+          />
+        </div>
+      </div>
 
       {/* Account details */}
       <div>
@@ -339,16 +408,19 @@ function ReturnForm({
   order,
   userId,
   onClose,
+  onSuccess,
 }: {
   order: Order
   userId: string
   onClose: () => void
+  onSuccess: (ticketId: string) => void
 }) {
   const supabase = createClient()
-  const [body, setBody]         = useState('')
-  const [submitting, setSub]    = useState(false)
-  const [done, setDone]         = useState(false)
-  const [submitError, setErr]   = useState(false)
+  const [body, setBody]       = useState('')
+  const [submitting, setSub]  = useState(false)
+  const [done, setDone]       = useState(false)
+  const [ticketId, setTicketId] = useState<string | null>(null)
+  const [submitError, setErr] = useState(false)
 
   const handleSubmit = async () => {
     if (!body.trim()) return
@@ -372,8 +444,13 @@ function ReturnForm({
       : null
 
     setSub(false)
-    if (res?.ok) setDone(true)
-    else setErr(true)
+    if (res?.ok) {
+      const json = await res.json()
+      setTicketId(json.ticket?.id ?? null)
+      setDone(true)
+    } else {
+      setErr(true)
+    }
   }
 
   if (done) {
@@ -381,15 +458,33 @@ function ReturnForm({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex items-center gap-2 py-4"
+        className="border border-white/10 rounded-sm bg-white/[0.03] px-4 py-4 space-y-3"
       >
-        <CheckCircle2 size={12} className="text-white shrink-0" />
-        <p className="font-mono text-[10px] text-white tracking-[0.1em]">
-          Support ticket raised — our team will contact you within 48 hours.
-        </p>
-        <button onClick={onClose} className="ml-auto text-rc-muted hover:text-white transition-colors">
-          <X size={12} />
-        </button>
+        <div className="flex items-center gap-2">
+          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+          <p className="font-mono text-[10px] text-white tracking-[0.08em]">
+            Request submitted — ticket opened.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Mail size={11} className="text-rc-muted shrink-0" />
+          <p className="font-mono text-[9px] text-rc-muted tracking-[0.08em]">
+            A confirmation email has been sent to you. Our team will respond within 48 hours.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          {ticketId && (
+            <button
+              onClick={() => onSuccess(ticketId)}
+              className="h-8 px-4 bg-white text-black font-mono text-[9px] tracking-[0.18em] rounded-sm hover:bg-zinc-100 transition-colors"
+            >
+              VIEW IN SUPPORT
+            </button>
+          )}
+          <button onClick={onClose} className="font-mono text-[9px] text-rc-muted hover:text-white transition-colors tracking-[0.12em]">
+            CLOSE
+          </button>
+        </div>
       </motion.div>
     )
   }
@@ -437,9 +532,19 @@ function ReturnForm({
   )
 }
 
-function OrderRow({ order, userId }: { order: Order; userId: string }) {
-  const [expanded, setExpanded]   = useState(false)
-  const [showReturn, setReturn]   = useState(false)
+function OrderRow({
+  order,
+  userId,
+  productImages,
+  onSwitchToSupport,
+}: {
+  order: Order
+  userId: string
+  productImages: Record<string, string>
+  onSwitchToSupport: (ticketId: string) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [showReturn, setReturn] = useState(false)
 
   const date = new Date(order.created_at).toLocaleDateString([], {
     day: '2-digit', month: 'short', year: 'numeric',
@@ -489,48 +594,64 @@ function OrderRow({ order, userId }: { order: Order; userId: string }) {
 
               {/* Line items */}
               <ul className="space-y-2">
-                {order.items.map((item, i) => (
-                  <li key={i} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-10 bg-zinc-900 border border-rc-border rounded-sm flex items-center justify-center shrink-0">
-                        <span className="font-display text-xs text-zinc-700">RC</span>
+                {order.items.map((item, i) => {
+                  const imgSrc = productImages[item.name.toLowerCase()]
+                  return (
+                    <li key={i} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="relative w-8 h-10 bg-zinc-900 border border-rc-border rounded-sm shrink-0 overflow-hidden">
+                          {imgSrc ? (
+                            <Image src={imgSrc} alt={item.name} fill className="object-cover object-top" sizes="32px" />
+                          ) : (
+                            <div className="absolute inset-0 bg-zinc-900" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-mono text-[10px] text-white">{item.name}</p>
+                          <p className="font-mono text-[8px] text-rc-muted tracking-[0.1em]">
+                            SIZE {item.size} · QTY {item.quantity}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-mono text-[10px] text-white">{item.name}</p>
-                        <p className="font-mono text-[8px] text-rc-muted tracking-[0.1em]">
-                          SIZE {item.size} · QTY {item.quantity}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="font-mono text-[11px] text-white shrink-0">
-                      ${(item.price * item.quantity).toFixed(0)}
-                    </p>
-                  </li>
-                ))}
+                      <p className="font-mono text-[11px] text-white shrink-0">
+                        ${(item.price * item.quantity).toFixed(0)}
+                      </p>
+                    </li>
+                  )
+                })}
               </ul>
 
               {/* Return/refund CTA */}
               <div className="pt-1">
-                {!showReturn ? (
-                  <button
-                    onClick={() => setReturn(true)}
-                    className={`h-9 px-4 border font-mono text-[9px] tracking-[0.18em] rounded-sm transition-colors ${
-                      canReturn
-                        ? 'border-white text-white hover:bg-white hover:text-black'
-                        : 'border-rc-border text-rc-muted cursor-not-allowed opacity-50'
-                    }`}
-                    disabled={!canReturn}
-                    title={!canReturn ? 'Returns available on delivered and shipped orders only' : undefined}
-                  >
-                    REQUEST RETURN / REFUND OR COMPLAIN
-                  </button>
-                ) : (
-                  <ReturnForm
-                    order={order}
-                    userId={userId}
-                    onClose={() => { setReturn(false) }}
-                  />
-                )}
+                <AnimatePresence mode="wait">
+                  {!showReturn ? (
+                    <button
+                      key="btn"
+                      onClick={() => setReturn(true)}
+                      className={`h-9 px-4 border font-mono text-[9px] tracking-[0.18em] rounded-sm transition-colors ${
+                        canReturn
+                          ? 'border-white text-white hover:bg-white hover:text-black'
+                          : 'border-rc-border text-rc-muted cursor-not-allowed opacity-50'
+                      }`}
+                      disabled={!canReturn}
+                      title={!canReturn ? 'Returns available on delivered and shipped orders only' : undefined}
+                    >
+                      REQUEST RETURN / REFUND OR COMPLAIN
+                    </button>
+                  ) : (
+                    <ReturnForm
+                      key="form"
+                      order={order}
+                      userId={userId}
+                      onClose={() => setReturn(false)}
+                      onSuccess={(ticketId) => {
+                        setReturn(false)
+                        setExpanded(false)
+                        onSwitchToSupport(ticketId)
+                      }}
+                    />
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </motion.div>
@@ -540,11 +661,19 @@ function OrderRow({ order, userId }: { order: Order; userId: string }) {
   )
 }
 
-function OrdersLedger({ userId }: { userId: string }) {
+function OrdersLedger({
+  userId,
+  onSwitchToSupport,
+}: {
+  userId: string
+  onSwitchToSupport: (ticketId: string) => void
+}) {
   const supabase = createClient()
-  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS)
+  const [orders, setOrders]             = useState<Order[]>(MOCK_ORDERS)
+  const [productImages, setProductImages] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    // Fetch orders
     supabase
       .from('orders')
       .select('*')
@@ -552,6 +681,20 @@ function OrdersLedger({ userId }: { userId: string }) {
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         if (data && data.length > 0) setOrders(data as Order[])
+      })
+
+    // Fetch products to build name→image map
+    supabase
+      .from('products')
+      .select('name, images, image_url')
+      .then(({ data }) => {
+        if (!data) return
+        const map: Record<string, string> = {}
+        data.forEach((p: { name: string; images: string[] | null; image_url: string | null }) => {
+          const img = p.images?.[0] ?? p.image_url ?? null
+          if (img) map[p.name.toLowerCase()] = img
+        })
+        setProductImages(map)
       })
   }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -573,7 +716,13 @@ function OrdersLedger({ userId }: { userId: string }) {
         ))}
       </div>
       {orders.map((order) => (
-        <OrderRow key={order.id} order={order} userId={userId} />
+        <OrderRow
+          key={order.id}
+          order={order}
+          userId={userId}
+          productImages={productImages}
+          onSwitchToSupport={onSwitchToSupport}
+        />
       ))}
     </div>
   )
@@ -583,7 +732,6 @@ function OrdersLedger({ userId }: { userId: string }) {
  *  SUPPORT HUB
  * ═══════════════════════════════════════════════════════════════ */
 
-/* Chat-style new conversation panel — shown on the right when composing */
 function NewConversation({
   userId,
   onCreated,
@@ -636,15 +784,12 @@ function NewConversation({
 
   return (
     <div className="flex flex-col h-full border border-rc-border rounded-sm overflow-hidden">
-      {/* Header */}
       <div className="shrink-0 flex items-center justify-between px-4 h-12 border-b border-rc-border bg-rc-subtle">
         <p className="font-mono text-[10px] text-white tracking-[0.18em]">NEW CONVERSATION</p>
         <button onClick={onCancel} className="font-mono text-[9px] text-rc-muted hover:text-white transition-colors tracking-[0.14em]">
           CANCEL
         </button>
       </div>
-
-      {/* Prompt area */}
       <div className="flex-1 flex items-center justify-center px-6">
         <div className="text-center max-w-xs">
           <p className="font-display text-2xl text-white mb-2">How can we help?</p>
@@ -653,8 +798,6 @@ function NewConversation({
           </p>
         </div>
       </div>
-
-      {/* Input bar */}
       <div className="shrink-0 border-t border-rc-border p-3">
         {error && (
           <p className="font-mono text-[8px] text-red-400 tracking-[0.1em] mb-2">
@@ -689,17 +832,13 @@ function NewConversation({
 type TicketSection = { label: string; statuses: TicketStatus[]; emptyText: string }
 
 const TICKET_SECTIONS: TicketSection[] = [
-  { label: 'UNREAD',      statuses: ['open'],              emptyText: 'No unread cases'     },
-  { label: 'IN PROGRESS', statuses: ['in_progress'],       emptyText: 'Nothing in progress' },
-  { label: 'COMPLETE',    statuses: ['resolved', 'closed'], emptyText: 'No completed cases' },
+  { label: 'UNREAD',      statuses: ['open'],               emptyText: 'No unread cases'     },
+  { label: 'IN PROGRESS', statuses: ['in_progress'],        emptyText: 'Nothing in progress' },
+  { label: 'COMPLETE',    statuses: ['resolved', 'closed'], emptyText: 'No completed cases'  },
 ]
 
 function TicketSectionGroup({
-  section,
-  tickets,
-  active,
-  composing,
-  onSelect,
+  section, tickets, active, composing, onSelect,
 }: {
   section: TicketSection
   tickets: Ticket[]
@@ -712,7 +851,6 @@ function TicketSectionGroup({
 
   return (
     <li>
-      {/* Section header */}
       <button
         onClick={() => setCollapsed(v => !v)}
         className="w-full flex items-center justify-between px-4 py-2 bg-white/[0.02] hover:bg-white/[0.04] transition-colors"
@@ -720,7 +858,6 @@ function TicketSectionGroup({
         <span className="font-mono text-[8px] tracking-[0.22em] text-rc-muted">{section.label}</span>
         <span className="font-mono text-[7px] text-zinc-700">{matching.length}</span>
       </button>
-
       {!collapsed && (
         <ul className="divide-y divide-rc-border">
           {matching.length === 0 ? (
@@ -764,12 +901,20 @@ function TicketSectionGroup({
   )
 }
 
-function SupportHub({ userId }: { userId: string }) {
+function SupportHub({
+  userId,
+  initialTicketId,
+}: {
+  userId: string
+  initialTicketId?: string | null
+}) {
   const supabase = createClient()
-  const [tickets, setTickets]         = useState<Ticket[]>([])
-  const [active, setActive]           = useState<Ticket | null>(null)
-  const [loadingTickets, setLoadingT] = useState(true)
-  const [composing, setComposing]     = useState(false)
+  const [tickets, setTickets]       = useState<Ticket[]>([])
+  const [active, setActive]         = useState<Ticket | null>(null)
+  const [loadingTickets, setLoading] = useState(true)
+  const [composing, setComposing]   = useState(false)
+  // Mobile: show 'list' or 'chat'
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
 
   useEffect(() => {
     supabase
@@ -780,13 +925,16 @@ function SupportHub({ userId }: { userId: string }) {
       .then(({ data }) => {
         const t = (data ?? []) as Ticket[]
         setTickets(t)
-        // Auto-open the most recent non-complete ticket
-        const firstActive = t.find(tk => tk.status === 'open' || tk.status === 'in_progress')
-        setActive(firstActive ?? t[0] ?? null)
-        setLoadingT(false)
+        if (initialTicketId) {
+          const target = t.find(tk => tk.id === initialTicketId)
+          if (target) { setActive(target); setMobileView('chat') }
+        } else {
+          const firstActive = t.find(tk => tk.status === 'open' || tk.status === 'in_progress')
+          setActive(firstActive ?? t[0] ?? null)
+        }
+        setLoading(false)
       })
 
-    // Real-time: reflect admin status changes instantly
     const ch = supabase
       .channel('dashboard-tickets')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tickets', filter: `user_id=eq.${userId}` },
@@ -798,12 +946,19 @@ function SupportHub({ userId }: { userId: string }) {
       .subscribe()
 
     return () => { supabase.removeChannel(ch) }
-  }, [userId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userId, initialTicketId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openTicket = (t: Ticket) => {
+    setActive(t)
+    setComposing(false)
+    setMobileView('chat')
+  }
 
   const handleCreated = (ticket: Ticket) => {
     setTickets((prev) => [ticket, ...prev])
     setActive(ticket)
     setComposing(false)
+    setMobileView('chat')
   }
 
   const rightPanel = () => {
@@ -812,19 +967,32 @@ function SupportHub({ userId }: { userId: string }) {
         <NewConversation
           userId={userId}
           onCreated={handleCreated}
-          onCancel={() => setComposing(false)}
+          onCancel={() => { setComposing(false); setMobileView('list') }}
         />
       )
     }
     if (active) {
       return (
-        <CustomerTicketChat
-          key={active.id}
-          ticketId={active.id}
-          ticketSubject={active.subject}
-          userId={userId}
-          isClosed={active.status === 'closed' || active.status === 'resolved'}
-        />
+        <div className="flex flex-col h-full">
+          {/* Mobile back button */}
+          <div className="md:hidden shrink-0 flex items-center gap-2 px-4 h-11 border border-rc-border border-b-0 rounded-t-sm bg-rc-subtle">
+            <button
+              onClick={() => setMobileView('list')}
+              className="flex items-center gap-1.5 font-mono text-[9px] text-rc-muted hover:text-white transition-colors tracking-[0.14em]"
+            >
+              <ArrowLeft size={11} /> BACK
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            <CustomerTicketChat
+              key={active.id}
+              ticketId={active.id}
+              ticketSubject={active.subject}
+              userId={userId}
+              isClosed={active.status === 'closed' || active.status === 'resolved'}
+            />
+          </div>
+        </div>
       )
     }
     return (
@@ -834,7 +1002,7 @@ function SupportHub({ userId }: { userId: string }) {
         </p>
         {!loadingTickets && (
           <button
-            onClick={() => setComposing(true)}
+            onClick={() => { setComposing(true); setMobileView('chat') }}
             className="h-8 px-4 border border-rc-border text-rc-muted font-mono text-[8px] tracking-[0.14em] rounded-sm hover:border-zinc-500 hover:text-white transition-colors"
           >
             + NEW MESSAGE
@@ -847,21 +1015,17 @@ function SupportHub({ userId }: { userId: string }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 min-h-[400px] md:h-[580px]">
 
-      {/* ── Left: sectioned ticket list ── */}
-      <div className="flex flex-col border border-rc-border rounded-sm overflow-hidden">
-        {/* List header */}
+      {/* Left: ticket list — hidden on mobile when chat is open */}
+      <div className={`${mobileView === 'chat' ? 'hidden' : 'flex'} md:flex flex-col border border-rc-border rounded-sm overflow-hidden`}>
         <div className="shrink-0 flex items-center justify-between px-4 h-12 border-b border-rc-border bg-rc-subtle">
           <p className="font-mono text-[9px] tracking-[0.2em] text-white">CASES</p>
           <button
-            onClick={() => { setComposing(true); setActive(null) }}
+            onClick={() => { setComposing(true); setActive(null); setMobileView('chat') }}
             className="flex items-center gap-1 h-7 px-2.5 border border-rc-border rounded-sm font-mono text-[8px] tracking-[0.14em] text-rc-muted hover:border-zinc-500 hover:text-white transition-colors"
           >
-            <Plus size={9} />
-            NEW
+            <Plus size={9} /> NEW
           </button>
         </div>
-
-        {/* Ticket sections */}
         <ul className="flex-1 overflow-y-auto scrollbar-none divide-y divide-rc-border">
           {loadingTickets ? (
             <li className="px-4 py-6 text-center">
@@ -879,7 +1043,7 @@ function SupportHub({ userId }: { userId: string }) {
                 <li className="px-4 py-8 text-center">
                   <p className="font-mono text-[9px] text-rc-muted tracking-[0.14em] mb-3">NO CASES YET</p>
                   <button
-                    onClick={() => setComposing(true)}
+                    onClick={() => { setComposing(true); setMobileView('chat') }}
                     className="font-mono text-[9px] text-white underline underline-offset-2 tracking-[0.14em]"
                   >
                     START A CONVERSATION
@@ -893,7 +1057,7 @@ function SupportHub({ userId }: { userId: string }) {
                     tickets={tickets}
                     active={active}
                     composing={composing}
-                    onSelect={t => { setActive(t); setComposing(false) }}
+                    onSelect={openTicket}
                   />
                 ))
               )}
@@ -902,8 +1066,8 @@ function SupportHub({ userId }: { userId: string }) {
         </ul>
       </div>
 
-      {/* ── Right panel ── */}
-      <div className="min-h-0">
+      {/* Right: chat panel — hidden on mobile when list is showing */}
+      <div className={`${mobileView === 'list' ? 'hidden' : 'flex'} md:flex flex-col min-h-0`}>
         {rightPanel()}
       </div>
     </div>
@@ -922,9 +1086,10 @@ const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [tab, setTab]       = useState<Tab>('profile')
-  const [userId, setUserId] = useState<string | null>(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const [tab, setTab]                       = useState<Tab>('profile')
+  const [userId, setUserId]                 = useState<string | null>(null)
+  const [authLoading, setAuthLoading]       = useState(true)
+  const [supportTicketId, setSupportTicketId] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -939,6 +1104,11 @@ export default function DashboardPage() {
       setAuthLoading(false)
     })
   }, [router])
+
+  const switchToSupport = (ticketId: string) => {
+    setSupportTicketId(ticketId)
+    setTab('support')
+  }
 
   if (authLoading) {
     return (
@@ -1008,8 +1178,14 @@ export default function DashboardPage() {
             transition={{ duration: 0.2 }}
           >
             {tab === 'profile' && <ProfilePanel userId={userId} />}
-            {tab === 'orders'  && <OrdersLedger userId={userId} />}
-            {tab === 'support' && <SupportHub   userId={userId} />}
+            {tab === 'orders'  && <OrdersLedger userId={userId} onSwitchToSupport={switchToSupport} />}
+            {tab === 'support' && (
+              <SupportHub
+                key={supportTicketId ?? 'hub'}
+                userId={userId}
+                initialTicketId={supportTicketId}
+              />
+            )}
           </motion.div>
         </AnimatePresence>
       </div>

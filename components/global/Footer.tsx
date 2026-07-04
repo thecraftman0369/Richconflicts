@@ -4,15 +4,11 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const SHOP_LINKS = [
-  { label: 'All Products',  href: '/shop' },
-  { label: 'New Arrivals',  href: '/shop?category=new-arrivals' },
-  { label: 'Sweatsuits',    href: '/shop?category=sweatsuits' },
-  { label: 'Hoodies',       href: '/shop?category=hoodies' },
-  { label: 'T-Shirts',      href: '/shop?category=t-shirts' },
+  { label: 'All Products', href: '/shop' },
+  { label: 'New Arrivals', href: '/shop?category=new-arrivals' },
 ]
 
 const INFO_LINKS = [
-  { label: 'About',        href: '/about' },
   { label: 'Sizing Guide', href: '/sizing-guide' },
   { label: 'Shipping',     href: '/shipping' },
   { label: 'Returns',      href: '/returns' },

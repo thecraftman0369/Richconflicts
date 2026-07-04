@@ -10,10 +10,8 @@ import { useSearch } from '@/app/lib/SearchContext'
 import { createClient } from '@/app/supabase/client'
 
 const NAV_LINKS = [
-  { label: 'SHOP',  href: '/shop' },
-  { label: 'DROPS', href: '/drops' },
-  { label: 'BLOG',  href: '/blog' },
-  { label: 'ABOUT', href: '/about' },
+  { label: 'SHOP', href: '/shop' },
+  { label: 'BLOG', href: '/blog' },
 ]
 
 export default function Navbar() {
