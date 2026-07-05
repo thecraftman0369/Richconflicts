@@ -27,23 +27,6 @@ function toProduct(p: DBProduct): Product {
   }
 }
 
-const BLOG_PREVIEWS = [
-  {
-    slug: 'death-of-clean-aesthetic',
-    category: 'CULTURE',
-    date: 'JUN 2026',
-    title: 'The Death of the Clean Aesthetic',
-    excerpt: 'Why raw, imperfect design is the only honest language left in streetwear.',
-  },
-  {
-    slug: 'how-we-build-a-drop',
-    category: 'PROCESS',
-    date: 'MAY 2026',
-    title: 'How We Build a Drop',
-    excerpt: 'From concept sketch to cut and sew — inside the RC production cycle.',
-  },
-]
-
 const TICKER = ['RICH CONFLICTS', 'UNDERGROUND', 'SS26', 'NO RESTOCKS', 'LIMITED RUNS', 'EST. MMXXIV']
 
 /* ─── Page ─── */
@@ -283,57 +266,6 @@ export default function HomePage() {
         <NewsletterBanner />
       </div>
 
-      {/* ═══════════════════════ BLOG PREVIEW ═══════════════════════ */}
-      <section className="py-14">
-        <div className="max-w-[1600px] mx-auto px-5">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <p className="font-mono text-[9px] tracking-[0.3em] text-rc-muted mb-1.5">DISPATCHES</p>
-              <h2 className="font-display text-display-md text-white">FIELD NOTES</h2>
-            </div>
-            <Link
-              href="/blog"
-              className="font-mono text-[9px] tracking-[0.2em] text-rc-muted hover:text-white transition-colors flex items-center gap-1.5"
-            >
-              ALL POSTS <ArrowRight size={9} />
-            </Link>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            {BLOG_PREVIEWS.map((post, i) => (
-              <motion.article
-                key={post.slug}
-                initial={{ opacity: 0, y: 18 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.45 }}
-                className="flex-1"
-              >
-                <Link
-                  href={`/blog/${post.slug}`}
-                  className="group flex flex-col border border-rc-border rounded-sm overflow-hidden hover:border-zinc-600 transition-colors h-full"
-                >
-                  <div className="aspect-[16/7] bg-zinc-900 relative">
-                    <div className="absolute inset-0 flex items-center justify-center select-none">
-                      <span className="font-mono text-[9px] tracking-[0.35em] text-zinc-700">{post.category}</span>
-                    </div>
-                  </div>
-                  <div className="p-5 flex flex-col flex-1">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="font-mono text-[9px] tracking-[0.2em] text-rc-muted">{post.category}</span>
-                      <span className="w-0.5 h-0.5 bg-rc-muted rounded-full" />
-                      <span className="font-mono text-[9px] tracking-[0.2em] text-rc-muted">{post.date}</span>
-                    </div>
-                    <h3 className="font-display text-2xl text-white group-hover:text-white/70 transition-colors mb-2 leading-tight">
-                      {post.title}
-                    </h3>
-                    <p className="font-mono text-[11px] text-rc-muted leading-relaxed">{post.excerpt}</p>
-                  </div>
-                </Link>
-              </motion.article>
-            ))}
-          </div>
-        </div>
-      </section>
 
     </div>
   )
