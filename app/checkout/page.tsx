@@ -444,7 +444,7 @@ export default function CheckoutPage() {
   )
 
   /* ── Empty cart guard ─────────────────────────────────────── */
-  if (items.length === 0 && step !== 'payment') {
+  if (items.length === 0) {
     return (
       <div className="pt-14 min-h-screen flex flex-col items-center justify-center gap-4">
         <p className="font-mono text-[10px] text-rc-muted tracking-[0.22em]">YOUR CART IS EMPTY.</p>

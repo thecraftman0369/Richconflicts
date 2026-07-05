@@ -114,7 +114,7 @@ async function onPaymentSucceeded(pi: Stripe.PaymentIntent): Promise<void> {
       const { data: product } = await supabaseAdmin
         .from('products')
         .select('inventory, stock')
-        .eq('name', item.name)
+        .eq('id', item.id)
         .single()
 
       if (product?.inventory) {
@@ -126,7 +126,7 @@ async function onPaymentSucceeded(pi: Stripe.PaymentIntent): Promise<void> {
         await supabaseAdmin
           .from('products')
           .update({ inventory: inv, stock: newStock, updated_at: new Date().toISOString() })
-          .eq('name', item.name)
+          .eq('id', item.id)
       }
     } catch (err) {
       console.warn(`[Webhook] ⚠ Inventory update failed for ${item.name}:`, err)

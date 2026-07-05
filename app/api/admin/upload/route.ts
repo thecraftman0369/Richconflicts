@@ -45,5 +45,6 @@ export async function POST(req: NextRequest) {
   }
 
   const { data } = supabaseAdmin.storage.from('blog-images').getPublicUrl(path)
+  if (!data?.publicUrl) return NextResponse.json({ error: 'Failed to generate public URL' }, { status: 500 })
   return NextResponse.json({ url: data.publicUrl })
 }
