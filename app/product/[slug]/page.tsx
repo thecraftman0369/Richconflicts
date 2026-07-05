@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -64,12 +64,16 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   }, [product])
 
   useEffect(() => {
-    supabase
-      .from('products')
-      .select('*')
-      .eq('id', slug)
-      .maybeSingle()
-      .then(({ data }) => {
+    // Try slug first (new products), fall back to id (legacy links)
+    supabase.from('products').select('*').eq('slug', slug).maybeSingle()
+      .then(async ({ data }) => {
+        if (!data) {
+          const { data: byId } = await supabase.from('products').select('*').eq('id', slug).maybeSingle()
+          return byId
+        }
+        return data
+      })
+      .then((data) => {
         if (!data) { setNotFound(true); return }
         const p = toProduct(data as DBProduct)
         setProduct(p)

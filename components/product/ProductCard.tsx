@@ -23,7 +23,7 @@ export default function ProductCard({
   const soldOut = isSoldOut(product) || product.isSoldOut === true
   const newBadge = isNew(product)
   const heroImage = product.images?.[0]
-  const href = `/product/${product.id}`
+  const href = `/product/${product.slug ?? product.id}`
 
   function handleQuickAdd(e: React.MouseEvent) {
     e.preventDefault()

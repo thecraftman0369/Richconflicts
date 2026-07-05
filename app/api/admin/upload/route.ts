@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/app/lib/supabase/admin'
-import { createClient } from '@/app/supabase/client'
 
 export async function POST(req: NextRequest) {
   // Verify admin session via Authorization header
