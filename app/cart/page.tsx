@@ -5,23 +5,11 @@ import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Minus, Plus, X, ArrowLeft, ArrowRight, ShoppingBag } from 'lucide-react'
 import { useCart } from '@/app/lib/CartContext'
-import { useState } from 'react'
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, subtotal, clearCart } = useCart()
-  const [promoCode, setPromoCode] = useState('')
-  const [promoApplied, setPromoApplied] = useState(false)
-
   const shipping = subtotal >= 150 ? 0 : 9.95
-  const discount = promoApplied ? subtotal * 0.1 : 0
-  const total = subtotal - discount + shipping
-
-  const handlePromo = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (promoCode.trim().toUpperCase() === 'CONFLICT') {
-      setPromoApplied(true)
-    }
-  }
+  const total = subtotal + shipping
 
   return (
     <div className="pt-14 min-h-screen">
@@ -183,21 +171,6 @@ export default function CartPage() {
                       <p className="font-mono text-[11px] text-white">${subtotal.toFixed(0)}</p>
                     </div>
 
-                    {promoApplied && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex justify-between"
-                      >
-                        <p className="font-mono text-[9px] text-white tracking-[0.12em]">
-                          PROMO (10%)
-                        </p>
-                        <p className="font-mono text-[11px] text-white">
-                          −${discount.toFixed(0)}
-                        </p>
-                      </motion.div>
-                    )}
-
                     <div className="flex justify-between">
                       <p className="font-mono text-[9px] text-rc-muted tracking-[0.12em]">
                         SHIPPING
@@ -218,25 +191,6 @@ export default function CartPage() {
                       </p>
                     )}
                   </div>
-
-                  {/* Promo code */}
-                  {!promoApplied && (
-                    <form onSubmit={handlePromo} className="px-5 pb-5 flex gap-2">
-                      <input
-                        type="text"
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value)}
-                        placeholder="PROMO CODE"
-                        className="flex-1 bg-transparent border border-rc-border rounded-sm px-3 h-9 font-mono text-[10px] text-white placeholder:text-rc-muted focus:outline-none focus:border-zinc-500 transition-colors tracking-[0.1em]"
-                      />
-                      <button
-                        type="submit"
-                        className="h-9 px-3 border border-rc-border text-rc-muted font-mono text-[9px] tracking-[0.1em] rounded-sm hover:border-zinc-500 hover:text-white transition-colors"
-                      >
-                        APPLY
-                      </button>
-                    </form>
-                  )}
 
                   <div className="px-5 pb-5">
                     <Link
