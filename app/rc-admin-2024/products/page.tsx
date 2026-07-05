@@ -53,7 +53,7 @@ type FormState = {
 }
 
 const ALL_SIZES   = ['XS', 'S', 'M', 'L', 'XL', '2XL']
-const CATEGORIES  = ['t-shirts', 'hoodies', 'sweatsuits', 'new-arrivals']
+const CATEGORIES  = ['t-shirts', 'hoodies', 'sweatsuits', 'accessories']
 const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL']
 
 const defaultInventory = () =>
