@@ -310,30 +310,42 @@ export default function ProductsPage() {
     }))
   }
 
-  /* ── Image upload ── */
+  const MAX_IMAGES = 4
+
+  /* ── Image upload — up to 4 images at once ── */
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+
+    const slots = MAX_IMAGES - form.images.length
+    if (slots <= 0) { setImgError(`Maximum ${MAX_IMAGES} images per product.`); return }
+    const toUpload = files.slice(0, slots)
+
     setUploading(true); setImgError('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
 
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { setImgError('Not authenticated.'); setUploading(false); return }
 
-    const fd = new FormData()
-    fd.append('file', file)
-    const res = await fetch('/api/admin/upload?folder=products', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session.access_token}` },
-      body: fd,
-    })
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    setUploading(false)
-    if (res.ok) {
+    const results = await Promise.all(toUpload.map(async file => {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/admin/upload?folder=products', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: fd,
+      })
+      if (!res.ok) return null
       const { url } = await res.json()
-      setForm(f => ({ ...f, images: [...f.images, url] }))
+      return url as string
+    }))
+
+    setUploading(false)
+    const urls = results.filter(Boolean) as string[]
+    if (urls.length) {
+      setForm(f => ({ ...f, images: [...f.images, ...urls] }))
     } else {
-      const { error: msg } = await res.json().catch(() => ({ error: 'Upload failed.' }))
-      setImgError(msg ?? 'Upload failed.')
+      setImgError('Upload failed. Please try again.')
     }
   }
 
@@ -589,21 +601,21 @@ export default function ProductsPage() {
                   )}
                   <div className="flex items-center gap-3">
                     <button type="button" onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
+                      disabled={uploading || form.images.length >= MAX_IMAGES}
                       className="flex items-center gap-2 h-9 px-4 border border-rc-border text-rc-muted font-mono text-[9px] tracking-[0.14em] rounded-sm hover:border-zinc-500 hover:text-white transition-colors disabled:opacity-50">
                       {uploading ? (
                         <><div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />UPLOADING…</>
                       ) : (
-                        <><Upload size={11} />UPLOAD IMAGE</>
+                        <><Upload size={11} />{form.images.length >= MAX_IMAGES ? 'MAX REACHED' : 'UPLOAD IMAGES'}</>
                       )}
                     </button>
                     <p className="font-mono text-[8px] text-zinc-700 tracking-[0.08em]">
-                      JPG, PNG, WEBP · MAX 10MB · First = primary
+                      {form.images.length}/{MAX_IMAGES} · JPG, PNG, WEBP · First = primary
                     </p>
                   </div>
                   {imgError && <p className="font-mono text-[8px] text-red-400 tracking-[0.1em]">{imgError}</p>}
                   <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp"
-                    className="hidden" onChange={handleImageUpload} />
+                    multiple className="hidden" onChange={handleImageUpload} />
                 </div>
               </Field>
 
