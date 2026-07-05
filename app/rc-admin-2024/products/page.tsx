@@ -485,19 +485,16 @@ export default function ProductsPage() {
 
             <div className="p-4 md:p-6 space-y-5">
 
-              {/* Name + Slug */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="PRODUCT NAME *">
-                  <input className={inputCls} value={form.name}
-                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="e.g. RC Heavyweight Tee" />
-                </Field>
-                <Field label="SLUG (URL PATH)">
-                  <input className={inputCls} value={form.slug}
-                    onChange={e => setForm(f => ({ ...f, slug: e.target.value }))}
-                    placeholder="e.g. rc-heavyweight-tee" />
-                </Field>
-              </div>
+              {/* Name — slug auto-generates */}
+              <Field label="PRODUCT NAME *">
+                <input className={inputCls} value={form.name}
+                  onChange={e => {
+                    const name = e.target.value
+                    const slug = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                    setForm(f => ({ ...f, name, slug }))
+                  }}
+                  placeholder="e.g. RC Heavyweight Tee" />
+              </Field>
 
               {/* Description */}
               <Field label="DESCRIPTION">
