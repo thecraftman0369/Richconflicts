@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  DndContext, closestCenter, KeyboardSensor,
-  PointerSensor, TouchSensor, useSensor, useSensors,
-  type DragEndEvent,
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
+  useSensor, useSensors, DragOverlay, useDroppable,
+  type DragStartEvent, type DragOverEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext, sortableKeyboardCoordinates,
@@ -16,45 +16,49 @@ import Image from 'next/image'
 import { createClient } from '@/app/supabase/client'
 
 /* ─── Types ─── */
-
 type Product = {
-  id:             string
-  name:           string
-  description:    string | null
-  category:       string | null
-  price:          number
-  original_price: number | null
-  stock:          number
-  image_url:      string | null
-  images:         string[]
-  slug:           string | null
-  featured:       boolean
-  is_new:         boolean
-  categories:     string[]
-  sizes:          string[]
-  inventory:      Record<string, number> | null
-  sort_order:     number
-  created_at:     string
+  id: string; name: string; description: string | null; category: string | null
+  price: number; original_price: number | null; stock: number; image_url: string | null
+  images: string[]; slug: string | null; featured: boolean; is_new: boolean
+  categories: string[]; sizes: string[]; inventory: Record<string, number> | null
+  sort_order: number; created_at: string
 }
 
 type FormState = {
-  name:           string
-  description:    string
-  category:       string
-  price:          number
-  original_price: number | null
-  images:         string[]
-  slug:           string
-  featured:       boolean
-  is_new:         boolean
-  categories:     string[]
-  sizes:          string[]
-  inventory:      Record<string, number>
+  name: string; description: string; category: string; price: number
+  original_price: number | null; images: string[]; slug: string
+  featured: boolean; is_new: boolean; categories: string[]; sizes: string[]
+  inventory: Record<string, number>
 }
 
-const ALL_SIZES   = ['XS', 'S', 'M', 'L', 'XL', '2XL']
-const CATEGORIES  = ['t-shirts', 'hoodies', 'sweatsuits', 'accessories']
+/* ─── Constants ─── */
+const ALL_SIZES    = ['XS', 'S', 'M', 'L', 'XL', '2XL']
+const CATEGORIES   = ['t-shirts', 'hoodies', 'sweatsuits', 'accessories']
 const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL']
+
+const SECTION_DEFS: { id: string; label: string; cap: number | null }[] = [
+  { id: 'homepage',      label: 'HOMEPAGE — NEW ARRIVALS', cap: 4 },
+  { id: 't-shirts',      label: 'T-SHIRTS',               cap: null },
+  { id: 'hoodies',       label: 'HOODIES',                cap: null },
+  { id: 'sweatsuits',    label: 'SWEATSUITS',             cap: null },
+  { id: 'accessories',   label: 'ACCESSORIES',            cap: null },
+  { id: 'uncategorized', label: 'UNCATEGORIZED',          cap: null },
+]
+
+function getSectionId(p: Product): string {
+  if (p.featured || p.is_new) return 'homepage'
+  if (p.category === 't-shirts')   return 't-shirts'
+  if (p.category === 'hoodies')    return 'hoodies'
+  if (p.category === 'sweatsuits') return 'sweatsuits'
+  if (p.category === 'accessories') return 'accessories'
+  return 'uncategorized'
+}
+
+function applySection(p: Product, sectionId: string): Product {
+  if (sectionId === 'homepage') return { ...p, is_new: true, featured: true }
+  const category = sectionId === 'uncategorized' ? null : sectionId
+  return { ...p, is_new: false, featured: false, category }
+}
 
 const defaultInventory = () =>
   Object.fromEntries(DEFAULT_SIZES.map(s => [s, 0])) as Record<string, number>
@@ -65,8 +69,7 @@ const EMPTY: FormState = {
   categories: [], sizes: DEFAULT_SIZES, inventory: defaultInventory(),
 }
 
-/* ─── Primitive UI ─── */
-
+/* ─── Field wrapper ─── */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -78,69 +81,41 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const inputCls = 'w-full bg-transparent border border-rc-border rounded-sm px-3 h-9 font-mono text-[11px] text-white placeholder:text-zinc-700 focus:outline-none focus:border-zinc-500 transition-colors'
 
-/* ─── Sortable product row ─── */
-
-function SortableRow({
-  product,
-  onEdit,
-  onDelete,
+/* ─── Shared row content (used by both sortable row and drag overlay) ─── */
+function ProductRowContent({
+  product, onEdit, onDelete, dragHandleProps, faded,
 }: {
-  product: Product
-  onEdit:  (p: Product) => void
-  onDelete:(id: string)  => void
+  product:          Product
+  onEdit?:          (p: Product) => void
+  onDelete?:        (id: string) => void
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>
+  faded?:           boolean
 }) {
-  const {
-    attributes, listeners, setNodeRef,
-    transform, transition, isDragging,
-  } = useSortable({ id: product.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 10 : undefined,
-    position: isDragging ? ('relative' as const) : undefined,
-  }
-
   const thumb    = product.images?.[0] ?? product.image_url
   const totalStk = product.inventory
     ? Object.values(product.inventory).reduce((a, b) => a + b, 0)
     : (product.stock ?? 0)
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-center gap-3 px-4 py-3 border-b border-rc-border transition-colors ${
-        isDragging ? 'bg-zinc-900 opacity-80' : 'bg-black hover:bg-white/[0.02]'
-      }`}
-    >
-      {/* Drag handle — touch-friendly */}
+    <div className={`flex items-center gap-3 px-4 py-3 border-b border-rc-border bg-black transition-opacity ${faded ? 'opacity-30' : ''}`}>
       <button
-        {...attributes}
-        {...listeners}
+        {...dragHandleProps}
         className="shrink-0 p-1 text-zinc-700 hover:text-zinc-400 cursor-grab active:cursor-grabbing touch-none select-none"
         aria-label="Drag to reorder"
-        title="Drag to reorder"
       >
         <GripVertical size={15} strokeWidth={1.5} />
       </button>
 
-      {/* Thumbnail */}
       <div className="shrink-0 w-9 h-11 bg-zinc-900 border border-rc-border rounded-sm overflow-hidden flex items-center justify-center">
-        {thumb ? (
-          <Image src={thumb} alt={product.name} width={36} height={44} className="w-full h-full object-cover" />
-        ) : (
-          <ImageIcon size={12} className="text-zinc-700" />
-        )}
+        {thumb
+          ? <Image src={thumb} alt={product.name} width={36} height={44} className="w-full h-full object-cover" />
+          : <ImageIcon size={12} className="text-zinc-700" />
+        }
       </div>
 
-      {/* Name + slug — grows to fill */}
       <div className="flex-1 min-w-0">
         <p className="font-mono text-[10px] text-white truncate">{product.name}</p>
-        {product.slug && (
-          <p className="font-mono text-[8px] text-rc-muted truncate">{product.slug}</p>
-        )}
-        {/* Badges visible on mobile only */}
+        {product.slug && <p className="font-mono text-[8px] text-rc-muted truncate">{product.slug}</p>}
         <div className="flex items-center gap-1 mt-0.5 md:hidden">
           <span className="font-mono text-[10px] text-white">${product.price.toFixed(2)}</span>
           {product.featured && <span className="font-mono text-[7px] text-purple-400 ml-1">FEAT</span>}
@@ -148,7 +123,6 @@ function SortableRow({
         </div>
       </div>
 
-      {/* Price — desktop only */}
       <div className="hidden md:block shrink-0 w-20 text-right">
         <p className="font-mono text-[10px] text-white">${product.price.toFixed(2)}</p>
         {product.original_price && (
@@ -156,7 +130,6 @@ function SortableRow({
         )}
       </div>
 
-      {/* Stock + per-size breakdown — desktop only */}
       <div className="hidden md:block shrink-0 w-28">
         <span className={`font-mono text-[9px] ${totalStk < 5 ? 'text-amber-400' : 'text-white'}`}>
           {totalStk} units
@@ -171,96 +144,199 @@ function SortableRow({
         )}
       </div>
 
-      {/* Flags — desktop only */}
-      <div className="hidden md:flex flex-col gap-0.5 shrink-0 w-16">
-        {product.featured && <span className="font-mono text-[7px] text-purple-400">FEATURED</span>}
-        {product.is_new   && <span className="font-mono text-[7px] text-emerald-400">NEW</span>}
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={() => onEdit(product)}
-          className="p-1.5 text-rc-muted hover:text-white transition-colors rounded-sm hover:bg-white/[0.04]"
-          aria-label="Edit"
-        >
-          <Pencil size={12} />
-        </button>
-        <button
-          onClick={() => onDelete(product.id)}
-          className="p-1.5 text-rc-muted hover:text-red-400 transition-colors rounded-sm hover:bg-red-900/10"
-          aria-label="Delete"
-        >
-          <Trash2 size={12} />
-        </button>
-      </div>
+      {onEdit && onDelete && (
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => onEdit(product)}
+            className="p-1.5 text-rc-muted hover:text-white transition-colors rounded-sm hover:bg-white/[0.04]"
+            aria-label="Edit"
+          >
+            <Pencil size={12} />
+          </button>
+          <button
+            onClick={() => onDelete(product.id)}
+            className="p-1.5 text-rc-muted hover:text-red-400 transition-colors rounded-sm hover:bg-red-900/10"
+            aria-label="Delete"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
-/* ─── Main page ─── */
+/* ─── Sortable row ─── */
+function SortableRow({ product, onEdit, onDelete }: {
+  product:  Product
+  onEdit:   (p: Product) => void
+  onDelete: (id: string) => void
+}) {
+  const {
+    attributes, listeners, setNodeRef,
+    transform, transition, isDragging,
+  } = useSortable({ id: product.id })
 
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <ProductRowContent
+        product={product}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        dragHandleProps={{ ...attributes, ...listeners }}
+        faded={isDragging}
+      />
+    </div>
+  )
+}
+
+/* ─── Droppable section container (handles empty sections as drop targets) ─── */
+function SectionDropZone({ sectionId, children }: { sectionId: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `section:${sectionId}` })
+  return (
+    <div
+      ref={setNodeRef}
+      className={`min-h-[52px] rounded-sm transition-all ${isOver ? 'ring-1 ring-white/20' : ''}`}
+    >
+      {children}
+    </div>
+  )
+}
+
+/* ─── Column headers (shared across sections) ─── */
+function ColumnHeaders() {
+  return (
+    <div className="hidden md:flex items-center gap-3 px-4 py-2 border-b border-rc-border bg-white/[0.02]">
+      <div className="w-6" />
+      <div className="w-9" />
+      <p className="flex-1 font-mono text-[8px] tracking-[0.2em] text-rc-muted">NAME</p>
+      <p className="w-20 text-right font-mono text-[8px] tracking-[0.2em] text-rc-muted">PRICE</p>
+      <p className="w-28 font-mono text-[8px] tracking-[0.2em] text-rc-muted">INVENTORY</p>
+      <div className="w-14" />
+    </div>
+  )
+}
+
+/* ═══════════════════════ Main page ═══════════════════════ */
 export default function ProductsPage() {
   const supabase     = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [products,  setProducts]  = useState<Product[]>([])
-  const [loading,   setLoading]   = useState(true)
-  const [showForm,  setShowForm]  = useState(false)
-  const [editing,   setEditing]   = useState<Product | null>(null)
-  const [form,      setForm]      = useState<FormState>({ ...EMPTY, inventory: defaultInventory() })
-  const [saving,         setSaving]         = useState(false)
-  const [uploading,      setUploading]      = useState(false)
-  const [error,          setError]          = useState('')
-  const [imgError,       setImgError]       = useState('')
-  const [savingOrder,    setSavingOrder]    = useState(false)
-  const [unsavedOrder,   setUnsavedOrder]   = useState(false)
-  const [orderSaved,     setOrderSaved]     = useState(false)
+  const [products,     setProducts]     = useState<Product[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [showForm,     setShowForm]     = useState(false)
+  const [editing,      setEditing]      = useState<Product | null>(null)
+  const [form,         setForm]         = useState<FormState>({ ...EMPTY, inventory: defaultInventory() })
+  const [saving,       setSaving]       = useState(false)
+  const [uploading,    setUploading]    = useState(false)
+  const [error,        setError]        = useState('')
+  const [imgError,     setImgError]     = useState('')
+  const [savingOrder,  setSavingOrder]  = useState(false)
+  const [unsavedOrder, setUnsavedOrder] = useState(false)
+  const [orderSaved,   setOrderSaved]   = useState(false)
+  const [activeId,     setActiveId]     = useState<string | null>(null)
 
-  /* DnD sensors — PointerSensor covers mouse; TouchSensor covers mobile with a
-     short delay so normal scrolling still works */
   const sensors = useSensors(
     useSensor(PointerSensor),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 8 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   const load = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('products')
-      .select('*')
-      .order('sort_order', { ascending: true })
+    const { data } = await supabase.from('products').select('*').order('sort_order', { ascending: true })
     setProducts((data ?? []) as Product[])
     setLoading(false)
   }
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Drag end: reorder locally only — user must click Save Order ── */
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = products.findIndex(p => p.id === active.id)
-    const newIndex = products.findIndex(p => p.id === over.id)
-    setProducts(prev => arrayMove(prev, oldIndex, newIndex))
-    setUnsavedOrder(true)
-    setOrderSaved(false)
+  /* ─── Drag: record what's being dragged ─── */
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    setActiveId(active.id as string)
   }
 
-  /* ── Save Order: persist current sort_order to Supabase ── */
+  /* ─── Drag: cross-section move — update category/flags live ─── */
+  const handleDragOver = useCallback(({ active, over }: DragOverEvent) => {
+    if (!over) return
+    const activeIdStr = active.id as string
+    const overIdStr   = over.id as string
+    if (activeIdStr === overIdStr) return
+
+    setProducts(prev => {
+      const activeP = prev.find(p => p.id === activeIdStr)
+      if (!activeP) return prev
+
+      // Determine target section (over a product or over a section drop zone)
+      let toSectionId: string
+      if (overIdStr.startsWith('section:')) {
+        toSectionId = overIdStr.replace('section:', '')
+      } else {
+        const overP = prev.find(p => p.id === overIdStr)
+        if (!overP) return prev
+        toSectionId = getSectionId(overP)
+      }
+
+      const fromSectionId = getSectionId(activeP)
+      if (fromSectionId === toSectionId) return prev // same section — handled in onDragEnd
+
+      // Apply new section flags
+      const updated = prev.map(p => p.id === activeIdStr ? applySection(p, toSectionId) : p)
+
+      // Reposition next to the over item (if over a product, not a zone)
+      if (!overIdStr.startsWith('section:')) {
+        const oldIdx = updated.findIndex(p => p.id === activeIdStr)
+        const newIdx = updated.findIndex(p => p.id === overIdStr)
+        if (oldIdx !== -1 && newIdx !== -1) return arrayMove(updated, oldIdx, newIdx)
+      }
+
+      return updated
+    })
+  }, [])
+
+  /* ─── Drag: finalize within-section reorder ─── */
+  const handleDragEnd = useCallback(({ active, over }: DragEndEvent) => {
+    setActiveId(null)
+    if (!over) { setUnsavedOrder(true); setOrderSaved(false); return }
+
+    const activeIdStr = active.id as string
+    const overIdStr   = over.id as string
+
+    if (activeIdStr !== overIdStr && !overIdStr.startsWith('section:')) {
+      setProducts(prev => {
+        const activeP = prev.find(p => p.id === activeIdStr)
+        const overP   = prev.find(p => p.id === overIdStr)
+        if (!activeP || !overP) return prev
+        // Cross-section already applied in onDragOver — only handle same-section sort here
+        if (getSectionId(activeP) !== getSectionId(overP)) return prev
+        const oldIdx = prev.findIndex(p => p.id === activeIdStr)
+        const newIdx = prev.findIndex(p => p.id === overIdStr)
+        return arrayMove(prev, oldIdx, newIdx)
+      })
+    }
+
+    setUnsavedOrder(true)
+    setOrderSaved(false)
+  }, [])
+
+  /* ─── Save: persist sort_order + any section changes ─── */
   const saveOrder = async () => {
     setSavingOrder(true)
     setOrderSaved(false)
-    const updates = products.map((p, i) => ({ id: p.id, sort_order: i + 1 }))
+    const updates = products.map((p, i) => ({
+      id:         p.id,
+      sort_order: i + 1,
+      category:   p.category,
+      featured:   p.featured,
+      is_new:     p.is_new,
+    }))
     const { error: err } = await supabase.from('products').upsert(updates, { onConflict: 'id' })
     setSavingOrder(false)
     if (err) {
-      setError('Failed to save order: ' + err.message)
+      setError('Failed to save: ' + err.message)
     } else {
       setUnsavedOrder(false)
       setOrderSaved(true)
@@ -268,7 +344,7 @@ export default function ProductsPage() {
     }
   }
 
-  /* ── Build inventory map from existing product ── */
+  /* ─── Form helpers ─── */
   const buildInventory = (p: Product): Record<string, number> => {
     const sizes = p.sizes?.length ? p.sizes : DEFAULT_SIZES
     const inv: Record<string, number> = {}
@@ -286,18 +362,16 @@ export default function ProductsPage() {
   }
 
   const openEdit = (p: Product) => {
-    const sizes = p.sizes?.length ? p.sizes : DEFAULT_SIZES
+    const sizes  = p.sizes?.length ? p.sizes : DEFAULT_SIZES
     const images = p.images?.filter(Boolean).length
       ? p.images.filter(Boolean)
       : p.image_url ? [p.image_url] : []
     setEditing(p)
     setForm({
-      name: p.name, description: p.description ?? '',
-      category: p.category ?? '', price: p.price,
-      original_price: p.original_price, images,
+      name: p.name, description: p.description ?? '', category: p.category ?? '',
+      price: p.price, original_price: p.original_price, images,
       slug: p.slug ?? '', featured: p.featured, is_new: p.is_new,
-      categories: p.categories ?? [], sizes,
-      inventory: buildInventory(p),
+      categories: p.categories ?? [], sizes, inventory: buildInventory(p),
     })
     setError(''); setImgError('')
     setShowForm(true)
@@ -314,35 +388,20 @@ export default function ProductsPage() {
     })
   }
 
-  const toggleCategory = (cat: string) => {
-    setForm(f => ({
-      ...f,
-      categories: f.categories.includes(cat)
-        ? f.categories.filter(c => c !== cat)
-        : [...f.categories, cat],
-    }))
-  }
-
   const MAX_IMAGES = 4
 
-  /* ── Image upload — up to 4 images at once ── */
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
     if (!files.length) return
-
     const slots = MAX_IMAGES - form.images.length
     if (slots <= 0) { setImgError(`Maximum ${MAX_IMAGES} images per product.`); return }
     const toUpload = files.slice(0, slots)
-
     setUploading(true); setImgError('')
     if (fileInputRef.current) fileInputRef.current.value = ''
-
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { setImgError('Not authenticated.'); setUploading(false); return }
-
     const results = await Promise.all(toUpload.map(async file => {
-      const fd = new FormData()
-      fd.append('file', file)
+      const fd = new FormData(); fd.append('file', file)
       const res = await fetch('/api/admin/upload?folder=products', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -352,7 +411,6 @@ export default function ProductsPage() {
       const { url } = await res.json()
       return url as string
     }))
-
     setUploading(false)
     const urls = results.filter(Boolean) as string[]
     if (urls.length) {
@@ -366,7 +424,6 @@ export default function ProductsPage() {
     setForm(f => ({ ...f, images: f.images.filter((_, i) => i !== index) }))
   }
 
-  /* ── Save ── */
   const handleSave = async () => {
     if (!form.name.trim()) { setError('Name is required.'); return }
     if (form.price <= 0)   { setError('Price must be greater than 0.'); return }
@@ -395,12 +452,10 @@ export default function ProductsPage() {
       const { error: err } = await supabase.from('products').update(payload).eq('id', editing.id)
       if (err) { setError(err.message); setSaving(false); return }
     } else {
-      // New products go to position 0 — above all existing products.
-      // First drag-and-drop reindex will normalize all sort_order values.
       const { error: err } = await supabase.from('products').insert({
         ...payload,
-        sort_order:  0,
-        created_at:  new Date().toISOString(),
+        sort_order: 0,
+        created_at: new Date().toISOString(),
       })
       if (err) { setError(err.message); setSaving(false); return }
     }
@@ -416,8 +471,16 @@ export default function ProductsPage() {
     setProducts(prev => prev.filter(p => p.id !== id))
   }
 
+  /* ─── Derived sections ─── */
+  const sections = SECTION_DEFS.map(def => ({
+    ...def,
+    products: products.filter(p => getSectionId(p) === def.id),
+  }))
+
+  const activeProduct  = products.find(p => p.id === activeId) ?? null
   const totalInventory = Object.values(form.inventory).reduce((a, b) => a + b, 0)
 
+  /* ═══════════════════════ Render ═══════════════════════ */
   return (
     <div className="p-4 md:p-6 max-w-[1200px]">
 
@@ -435,14 +498,14 @@ export default function ProductsPage() {
         </button>
       </div>
 
-      {/* Hint + Save Order bar */}
-      <div className="flex items-center justify-between mb-3 gap-4">
+      {/* Save bar */}
+      <div className="flex items-center justify-between mb-6 gap-4">
         <p className="font-mono text-[8px] text-zinc-700 tracking-[0.1em]">
-          DRAG <GripVertical size={9} className="inline -mt-0.5" /> TO REORDER — CLICK SAVE ORDER WHEN DONE
+          DRAG <GripVertical size={9} className="inline -mt-0.5" /> TO REORDER OR MOVE BETWEEN SECTIONS — SAVE WHEN DONE
         </p>
         <div className="flex items-center gap-3 shrink-0">
           {orderSaved && (
-            <span className="font-mono text-[8px] text-emerald-400 tracking-[0.1em]">ORDER SAVED</span>
+            <span className="font-mono text-[8px] text-emerald-400 tracking-[0.1em]">SAVED</span>
           )}
           <button
             onClick={saveOrder}
@@ -458,51 +521,85 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Product list */}
+      {/* Global error */}
+      {error && (
+        <p className="font-mono text-[9px] text-red-400 tracking-[0.1em] mb-4">{error}</p>
+      )}
+
+      {/* Sections */}
       {loading ? (
         <div className="flex items-center justify-center h-32">
           <div className="w-5 h-5 border border-white/20 border-t-white rounded-full animate-spin" />
         </div>
-      ) : products.length === 0 ? (
-        <div className="border border-rc-border rounded-sm py-16 text-center">
-          <p className="font-mono text-[10px] text-rc-muted tracking-[0.2em]">NO PRODUCTS YET.</p>
-          <button onClick={openAdd} className="mt-3 font-mono text-[9px] text-white underline underline-offset-2 hover:opacity-60">
-            Add your first product
-          </button>
-        </div>
       ) : (
-        <div className="border border-rc-border rounded-sm overflow-hidden">
-          {/* Column headers — desktop only */}
-          <div className="hidden md:flex items-center gap-3 px-4 py-2 border-b border-rc-border bg-white/[0.02]">
-            <div className="w-6" />
-            <div className="w-9" />
-            <p className="flex-1 font-mono text-[8px] tracking-[0.2em] text-rc-muted">NAME</p>
-            <p className="w-20 text-right font-mono text-[8px] tracking-[0.2em] text-rc-muted">PRICE</p>
-            <p className="w-28 font-mono text-[8px] tracking-[0.2em] text-rc-muted">INVENTORY</p>
-            <p className="w-16 font-mono text-[8px] tracking-[0.2em] text-rc-muted">FLAGS</p>
-            <div className="w-14" />
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="space-y-6">
+            {sections.map(section => (
+              <div key={section.id}>
+
+                {/* Section header */}
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <div className="flex items-center gap-3">
+                    <p className="font-mono text-[9px] tracking-[0.22em] text-white">{section.label}</p>
+                    <span className="font-mono text-[8px] text-rc-muted">{section.products.length} ITEMS</span>
+                  </div>
+                  {section.cap != null && (
+                    <p className={`font-mono text-[8px] tracking-[0.1em] ${
+                      section.products.length >= section.cap ? 'text-amber-400' : 'text-rc-muted'
+                    }`}>
+                      {section.products.length}/{section.cap} SLOTS
+                      {section.products.length >= section.cap ? ' — FULL' : ''}
+                    </p>
+                  )}
+                </div>
+
+                {/* Section body */}
+                <SortableContext
+                  items={section.products.map(p => p.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <SectionDropZone sectionId={section.id}>
+                    {section.products.length === 0 ? (
+                      <div className="border border-dashed border-zinc-800 rounded-sm py-6 text-center">
+                        <p className="font-mono text-[8px] text-zinc-700 tracking-[0.12em]">
+                          DRAG PRODUCTS HERE
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="border border-rc-border rounded-sm overflow-hidden">
+                        <ColumnHeaders />
+                        {section.products.map(product => (
+                          <SortableRow
+                            key={product.id}
+                            product={product}
+                            onEdit={openEdit}
+                            onDelete={handleDelete}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </SectionDropZone>
+                </SortableContext>
+
+              </div>
+            ))}
           </div>
 
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={products.map(p => p.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              {products.map(product => (
-                <SortableRow
-                  key={product.id}
-                  product={product}
-                  onEdit={openEdit}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        </div>
+          {/* Floating drag preview */}
+          <DragOverlay>
+            {activeProduct && (
+              <div className="border border-white/20 rounded-sm bg-zinc-900 shadow-2xl opacity-95">
+                <ProductRowContent product={activeProduct} />
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {/* ─── Add / Edit modal ─── */}
@@ -510,7 +607,6 @@ export default function ProductsPage() {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-2xl bg-black border border-rc-border rounded-sm my-4">
 
-            {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-rc-border sticky top-0 bg-black z-10">
               <h2 className="font-display text-xl text-white">{editing ? 'EDIT PRODUCT' : 'ADD PRODUCT'}</h2>
               <button onClick={() => setShowForm(false)} className="text-rc-muted hover:text-white transition-colors">
@@ -520,7 +616,6 @@ export default function ProductsPage() {
 
             <div className="p-4 md:p-6 space-y-5">
 
-              {/* Name — slug auto-generates */}
               <Field label="PRODUCT NAME *">
                 <input className={inputCls} value={form.name}
                   onChange={e => {
@@ -531,7 +626,6 @@ export default function ProductsPage() {
                   placeholder="e.g. RC Heavyweight Tee" />
               </Field>
 
-              {/* Description */}
               <Field label="DESCRIPTION">
                 <textarea
                   className="w-full bg-transparent border border-rc-border rounded-sm px-3 py-2 font-mono text-[11px] text-white placeholder:text-zinc-700 focus:outline-none focus:border-zinc-500 transition-colors resize-none h-20"
@@ -541,7 +635,6 @@ export default function ProductsPage() {
                 />
               </Field>
 
-              {/* Price */}
               <div className="grid grid-cols-2 gap-4">
                 <Field label="PRICE ($) *">
                   <input type="number" min="0" step="0.01" className={inputCls}
@@ -555,29 +648,27 @@ export default function ProductsPage() {
                 </Field>
               </div>
 
-              {/* Category */}
               <Field label="CATEGORY">
-                <select className={inputCls + ' appearance-none cursor-pointer'}
-                  value={form.category}
+                <select className={inputCls + ' appearance-none cursor-pointer'} value={form.category}
                   onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
                   <option value="">Select category…</option>
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </Field>
 
-              {/* Sizes */}
               <Field label="AVAILABLE SIZES">
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   {ALL_SIZES.map(s => (
                     <button key={s} type="button" onClick={() => toggleSize(s)}
                       className={`font-mono text-[9px] w-10 h-8 rounded-sm border transition-colors ${
-                        form.sizes.includes(s) ? 'bg-white text-black border-white' : 'border-rc-border text-rc-muted hover:text-white'
+                        form.sizes.includes(s)
+                          ? 'bg-white text-black border-white'
+                          : 'border-rc-border text-rc-muted hover:text-white'
                       }`}>{s}</button>
                   ))}
                 </div>
               </Field>
 
-              {/* Per-size inventory */}
               <Field label={`INVENTORY PER SIZE — TOTAL: ${totalInventory} UNITS`}>
                 {form.sizes.length === 0 ? (
                   <p className="font-mono text-[9px] text-zinc-700 mt-1">Select sizes above to set inventory.</p>
@@ -599,7 +690,6 @@ export default function ProductsPage() {
                 )}
               </Field>
 
-              {/* Product images */}
               <Field label="PRODUCT IMAGES">
                 <div className="space-y-3 mt-1">
                   {form.images.length > 0 && (
@@ -642,25 +732,29 @@ export default function ProductsPage() {
                 </div>
               </Field>
 
-              {/* Flags */}
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.featured}
-                    onChange={e => setForm(f => ({ ...f, featured: e.target.checked }))}
-                    className="accent-white w-3.5 h-3.5" />
-                  <span className="font-mono text-[9px] text-white tracking-[0.12em]">FEATURED ON HOMEPAGE</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={form.is_new}
-                    onChange={e => setForm(f => ({ ...f, is_new: e.target.checked }))}
-                    className="accent-white w-3.5 h-3.5" />
-                  <span className="font-mono text-[9px] text-white tracking-[0.12em]">NEW ARRIVAL</span>
-                </label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.featured}
+                      onChange={e => setForm(f => ({ ...f, featured: e.target.checked }))}
+                      className="accent-white w-3.5 h-3.5" />
+                    <span className="font-mono text-[9px] text-white tracking-[0.12em]">FEATURED ON HOMEPAGE</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.is_new}
+                      onChange={e => setForm(f => ({ ...f, is_new: e.target.checked }))}
+                      className="accent-white w-3.5 h-3.5" />
+                    <span className="font-mono text-[9px] text-white tracking-[0.12em]">NEW ARRIVAL</span>
+                  </label>
+                </div>
+                <p className="font-mono text-[8px] text-zinc-600 tracking-[0.06em]">
+                  Checking either box places this product in the Homepage section (max 4 shown on site).
+                  You can also drag it into that section from the product list.
+                </p>
               </div>
 
               {error && <p className="font-mono text-[9px] text-red-400 tracking-[0.1em]">{error}</p>}
 
-              {/* Actions */}
               <div className="flex items-center gap-3 pt-2">
                 <button onClick={handleSave} disabled={saving}
                   className="flex-1 h-10 bg-white text-black font-mono text-[9px] tracking-[0.2em] rounded-sm hover:bg-zinc-100 transition-colors disabled:opacity-50">
@@ -671,6 +765,7 @@ export default function ProductsPage() {
                   CANCEL
                 </button>
               </div>
+
             </div>
           </div>
         </div>
