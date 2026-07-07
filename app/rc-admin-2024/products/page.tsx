@@ -320,17 +320,17 @@ export default function ProductsPage() {
   const saveOrder = async () => {
     setSavingOrder(true)
     setOrderSaved(false)
-    const updates = products.map((p, i) => ({
-      id:         p.id,
-      sort_order: i + 1,
-      category:   p.category,
-      featured:   p.featured,
-      is_new:     p.is_new,
-    }))
-    const { error: err } = await supabase.from('products').upsert(updates, { onConflict: 'id' })
+    const results = await Promise.all(
+      products.map((p, i) =>
+        supabase.from('products')
+          .update({ sort_order: i + 1, category: p.category, featured: p.featured, is_new: p.is_new })
+          .eq('id', p.id)
+      )
+    )
     setSavingOrder(false)
-    if (err) {
-      setError('Failed to save: ' + err.message)
+    const failed = results.find(r => r.error)
+    if (failed?.error) {
+      setError('Failed to save: ' + failed.error.message)
     } else {
       setUnsavedOrder(false)
       setOrderSaved(true)
