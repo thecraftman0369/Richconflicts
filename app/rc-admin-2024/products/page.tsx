@@ -209,11 +209,13 @@ export default function ProductsPage() {
   const [showForm,  setShowForm]  = useState(false)
   const [editing,   setEditing]   = useState<Product | null>(null)
   const [form,      setForm]      = useState<FormState>({ ...EMPTY, inventory: defaultInventory() })
-  const [saving,    setSaving]    = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [error,     setError]     = useState('')
-  const [imgError,  setImgError]  = useState('')
-  const [savingOrder, setSavingOrder] = useState(false)
+  const [saving,         setSaving]         = useState(false)
+  const [uploading,      setUploading]      = useState(false)
+  const [error,          setError]          = useState('')
+  const [imgError,       setImgError]       = useState('')
+  const [savingOrder,    setSavingOrder]    = useState(false)
+  const [unsavedOrder,   setUnsavedOrder]   = useState(false)
+  const [orderSaved,     setOrderSaved]     = useState(false)
 
   /* DnD sensors — PointerSensor covers mouse; TouchSensor covers mobile with a
      short delay so normal scrolling still works */
@@ -239,20 +241,31 @@ export default function ProductsPage() {
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Drag end: reorder locally then batch-save to Supabase ── */
-  const handleDragEnd = async (event: DragEndEvent) => {
+  /* ── Drag end: reorder locally only — user must click Save Order ── */
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-
     const oldIndex = products.findIndex(p => p.id === active.id)
     const newIndex = products.findIndex(p => p.id === over.id)
-    const reordered = arrayMove(products, oldIndex, newIndex)
-    setProducts(reordered)
+    setProducts(prev => arrayMove(prev, oldIndex, newIndex))
+    setUnsavedOrder(true)
+    setOrderSaved(false)
+  }
 
+  /* ── Save Order: persist current sort_order to Supabase ── */
+  const saveOrder = async () => {
     setSavingOrder(true)
-    const updates = reordered.map((p, i) => ({ id: p.id, sort_order: i + 1 }))
-    await supabase.from('products').upsert(updates, { onConflict: 'id' })
+    setOrderSaved(false)
+    const updates = products.map((p, i) => ({ id: p.id, sort_order: i + 1 }))
+    const { error: err } = await supabase.from('products').upsert(updates, { onConflict: 'id' })
     setSavingOrder(false)
+    if (err) {
+      setError('Failed to save order: ' + err.message)
+    } else {
+      setUnsavedOrder(false)
+      setOrderSaved(true)
+      setTimeout(() => setOrderSaved(false), 3000)
+    }
   }
 
   /* ── Build inventory map from existing product ── */
@@ -422,17 +435,27 @@ export default function ProductsPage() {
         </button>
       </div>
 
-      {/* Hint + saving indicator */}
-      <div className="flex items-center justify-between mb-3">
+      {/* Hint + Save Order bar */}
+      <div className="flex items-center justify-between mb-3 gap-4">
         <p className="font-mono text-[8px] text-zinc-700 tracking-[0.1em]">
-          DRAG <GripVertical size={9} className="inline -mt-0.5" /> TO REORDER — ORDER IS REFLECTED IN THE SHOP AND HOMEPAGE
+          DRAG <GripVertical size={9} className="inline -mt-0.5" /> TO REORDER — CLICK SAVE ORDER WHEN DONE
         </p>
-        {savingOrder && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 border border-white/30 border-t-white rounded-full animate-spin" />
-            <span className="font-mono text-[8px] text-rc-muted">SAVING ORDER…</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3 shrink-0">
+          {orderSaved && (
+            <span className="font-mono text-[8px] text-emerald-400 tracking-[0.1em]">ORDER SAVED</span>
+          )}
+          <button
+            onClick={saveOrder}
+            disabled={savingOrder || !unsavedOrder}
+            className={`h-8 px-4 font-mono text-[9px] tracking-[0.15em] rounded-sm transition-colors ${
+              unsavedOrder
+                ? 'bg-white text-black hover:bg-zinc-100'
+                : 'border border-rc-border text-zinc-700 cursor-not-allowed'
+            }`}
+          >
+            {savingOrder ? 'SAVING…' : 'SAVE ORDER'}
+          </button>
+        </div>
       </div>
 
       {/* Product list */}
