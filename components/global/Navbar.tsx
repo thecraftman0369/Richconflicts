@@ -11,7 +11,6 @@ import { createClient } from '@/app/supabase/client'
 
 const NAV_LINKS = [
   { label: 'SHOP', href: '/shop' },
-  { label: 'BLOG', href: '/blog' },
 ]
 
 export default function Navbar() {
