@@ -34,7 +34,7 @@ export default function AdminSidebar() {
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.replace('/rc-admin-2024/login')
+    router.replace('/')
   }
 
   const NAV = [

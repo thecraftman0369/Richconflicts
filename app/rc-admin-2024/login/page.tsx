@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Lock, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
 import { createClient } from '@/app/supabase/client'
 
 export default function AdminLoginPage() {
@@ -46,7 +47,7 @@ export default function AdminLoginPage() {
         className="w-full max-w-sm"
       >
         <div className="text-center mb-8">
-          <p className="font-display text-4xl text-white mb-1">RC</p>
+          <Link href="/" className="font-display text-4xl text-white mb-1 hover:opacity-60 transition-opacity block">RC</Link>
           <p className="font-mono text-[9px] text-rc-muted tracking-[0.25em]">ADMIN ACCESS</p>
         </div>
 
