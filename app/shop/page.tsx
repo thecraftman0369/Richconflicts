@@ -72,9 +72,9 @@ export default function ShopPage() {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Derive category labels from DB products
+  // Derive category labels from DB products — exclude new-arrivals (handled separately as a hardcoded tab)
   const CATEGORY_LABELS = useMemo(() => {
-    const seen = new Set<string>()
+    const seen = new Set<string>(['new-arrivals'])
     const out: string[] = []
     dbProducts.forEach(p => {
       const cats = p.categories?.length ? p.categories : [p.category]
@@ -89,6 +89,7 @@ export default function ShopPage() {
   useEffect(() => {
     const raw = searchParams.get('category')
     if (!raw) return
+    if (raw === 'new-arrivals') { setActiveCategory('NEW ARRIVALS'); return }
     const label = raw.toUpperCase().replace(/-/g, ' ')
     setActiveCategory(label)
   }, [searchParams, CATEGORY_LABELS])
@@ -104,6 +105,7 @@ export default function ShopPage() {
 
   const filtered = useMemo(() => {
     if (activeCategory === 'ALL') return dbProducts
+    if (activeCategory === 'NEW ARRIVALS') return dbProducts.filter(p => p.isNew || p.featured).slice(0, 4)
     const raw = activeCategory.toLowerCase().replace(/\s+/g, '-')
     return dbProducts.filter(p => p.category === raw || p.categories?.includes(raw))
   }, [activeCategory, dbProducts])
@@ -136,6 +138,14 @@ export default function ShopPage() {
               }`}
             >
               ALL
+            </button>
+            <button
+              onClick={() => setActiveCategory('NEW ARRIVALS')}
+              className={`shrink-0 font-mono text-[9px] tracking-[0.18em] px-3 py-1.5 rounded-sm transition-all duration-150 ${
+                activeCategory === 'NEW ARRIVALS' ? 'bg-white text-black' : 'text-rc-muted hover:text-white'
+              }`}
+            >
+              NEW ARRIVALS
             </button>
             {CATEGORY_LABELS.map(label => (
               <button
