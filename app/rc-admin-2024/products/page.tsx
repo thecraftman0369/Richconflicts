@@ -33,24 +33,20 @@ type FormState = {
 
 /* ─── Constants ─── */
 const ALL_SIZES    = ['XS', 'S', 'M', 'L', 'XL', '2XL']
-const CATEGORIES   = ['t-shirts', 'hoodies', 'sweatsuits', 'accessories']
+const CATEGORIES   = ['t-shirts', 'sweatsuits']
 const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL']
 
 const SECTION_DEFS: { id: string; label: string; cap: number | null }[] = [
   { id: 'homepage',      label: 'HOMEPAGE — NEW ARRIVALS', cap: 4 },
-  { id: 't-shirts',      label: 'T-SHIRTS',               cap: null },
-  { id: 'hoodies',       label: 'HOODIES',                cap: null },
   { id: 'sweatsuits',    label: 'SWEATSUITS',             cap: null },
-  { id: 'accessories',   label: 'ACCESSORIES',            cap: null },
+  { id: 't-shirts',      label: 'T-SHIRTS',               cap: null },
   { id: 'uncategorized', label: 'UNCATEGORIZED',          cap: null },
 ]
 
 function getSectionId(p: Product): string {
   if (p.featured || p.is_new) return 'homepage'
-  if (p.category === 't-shirts')   return 't-shirts'
-  if (p.category === 'hoodies')    return 'hoodies'
   if (p.category === 'sweatsuits') return 'sweatsuits'
-  if (p.category === 'accessories') return 'accessories'
+  if (p.category === 't-shirts')   return 't-shirts'
   return 'uncategorized'
 }
 
