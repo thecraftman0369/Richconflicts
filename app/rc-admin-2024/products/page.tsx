@@ -382,11 +382,11 @@ export default function ProductsPage() {
       const { error: err } = await supabase.from('products').update(payload).eq('id', editing.id)
       if (err) { setError(err.message); setSaving(false); return }
     } else {
-      // New products go to the top (sort_order = 0 shifts all others down)
-      const maxOrder = products.length + 1
+      // New products go to position 0 — above all existing products.
+      // First drag-and-drop reindex will normalize all sort_order values.
       const { error: err } = await supabase.from('products').insert({
         ...payload,
-        sort_order:  maxOrder,
+        sort_order:  0,
         created_at:  new Date().toISOString(),
       })
       if (err) { setError(err.message); setSaving(false); return }

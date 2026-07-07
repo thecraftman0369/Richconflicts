@@ -37,15 +37,24 @@ export default function HomePage() {
   const [setsCount, setSetsCount] = useState(0)
 
   useEffect(() => {
-    supabase.from('products').select('*').order('sort_order', { ascending: true }).then(({ data }) => {
-      const all = (data ?? []) as DBProduct[]
-      const products = all.map(toProduct)
-      setAllCount(products.length)
-      setSetsCount(products.filter(p => p.category === 'sweatsuits' || p.categories?.includes('sweatsuits')).length)
-      // Featured section respects admin sort order — first 4 featured/new products
-      const feat = products.filter(p => p.isNew || p.featured).slice(0, 4)
-      setFeatured(feat.length ? feat : products.slice(0, 4))
-    })
+    const fetchProducts = () =>
+      supabase.from('products').select('*').order('sort_order', { ascending: true }).then(({ data }) => {
+        const all = (data ?? []) as DBProduct[]
+        const products = all.map(toProduct)
+        setAllCount(products.length)
+        setSetsCount(products.filter(p => p.category === 'sweatsuits' || p.categories?.includes('sweatsuits')).length)
+        const feat = products.filter(p => p.isNew || p.featured).slice(0, 4)
+        setFeatured(feat.length ? feat : products.slice(0, 4))
+      })
+
+    fetchProducts()
+
+    const channel = supabase
+      .channel('homepage-products')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, fetchProducts)
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const COLLECTIONS = [
