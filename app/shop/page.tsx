@@ -59,17 +59,28 @@ export default function ShopPage() {
 
   const [dbProducts,     setDbProducts]     = useState<Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
+  const [fetchError,     setFetchError]     = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState('ALL')
   const [sortValue,      setSortValue]      = useState('new')
   const [sortOpen,       setSortOpen]       = useState(false)
   const sortRef = useRef<HTMLDivElement>(null)
 
-  // Fetch products from Supabase — ordered by admin-set sort_order
-  useEffect(() => {
-    supabase.from('products').select('*').order('sort_order', { ascending: true }).then(({ data }) => {
-      setDbProducts((data ?? []).map(p => toProduct(p as DBProduct)))
+  const loadProducts = () => {
+    setLoadingProducts(true)
+    setFetchError(null)
+    supabase.from('products').select('*').order('sort_order', { ascending: true }).then(({ data, error }) => {
+      if (error) {
+        setFetchError('Could not load products. Please refresh the page.')
+      } else {
+        setDbProducts((data ?? []).map(p => toProduct(p as DBProduct)))
+      }
       setLoadingProducts(false)
     })
+  }
+
+  // Fetch products from Supabase — ordered by admin-set sort_order
+  useEffect(() => {
+    loadProducts()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derive category labels from DB products — exclude new-arrivals (handled separately as a hardcoded tab)
@@ -232,6 +243,16 @@ export default function ShopPage() {
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="aspect-[3/4] bg-white/[0.03] rounded-sm animate-pulse" />
             ))}
+          </div>
+        ) : fetchError ? (
+          <div className="py-32 text-center space-y-4">
+            <p className="font-mono text-[11px] text-red-400/80 tracking-[0.2em]">{fetchError}</p>
+            <button
+              onClick={loadProducts}
+              className="font-mono text-[9px] border border-rc-border text-white px-4 py-2 rounded-sm hover:border-zinc-500 transition-colors tracking-[0.15em]"
+            >
+              TRY AGAIN
+            </button>
           </div>
         ) : (
           <AnimatePresence mode="wait">

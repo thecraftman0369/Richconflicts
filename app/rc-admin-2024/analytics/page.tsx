@@ -68,12 +68,12 @@ export default function AnalyticsPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
         {stats.map(({ label, value, sub, icon: Icon, color }) => (
-          <div key={label} className="border border-rc-border rounded-sm p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="font-mono text-[8px] tracking-[0.2em] text-rc-muted">{label}</p>
-              <Icon size={11} className={color} />
+          <div key={label} className="border border-rc-border rounded-sm p-3 md:p-5">
+            <div className="flex items-center justify-between mb-2 md:mb-3">
+              <p className="font-mono text-[7px] md:text-[8px] tracking-[0.2em] text-rc-muted leading-tight">{label}</p>
+              <Icon size={10} className={`shrink-0 ml-1 ${color}`} />
             </div>
-            <p className="font-display text-3xl text-white mb-1">{value}</p>
+            <p className="font-display text-2xl md:text-3xl text-white mb-1">{value}</p>
             {sub && <p className="font-mono text-[8px] text-rc-muted">{sub}</p>}
           </div>
         ))}

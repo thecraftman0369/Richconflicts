@@ -8,6 +8,7 @@ import ToastList from '@/components/ui/Toast'
 import { CartProvider } from '@/app/lib/CartContext'
 import { ToastProvider } from '@/app/lib/ToastContext'
 import { SearchProvider } from '@/app/lib/SearchContext'
+import { Analytics } from '@vercel/analytics/next'
 
 const bebasNeue = Bebas_Neue({
   weight: '400',
@@ -59,6 +60,7 @@ export default function RootLayout({
             </SearchProvider>
           </CartProvider>
         </ToastProvider>
+        <Analytics />
       </body>
     </html>
   )

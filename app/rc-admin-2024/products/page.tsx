@@ -494,8 +494,11 @@ export default function ProductsPage() {
 
       {/* Save bar */}
       <div className="flex items-center justify-between mb-6 gap-4">
-        <p className="font-mono text-[8px] text-zinc-700 tracking-[0.1em]">
+        <p className="hidden md:block font-mono text-[8px] text-zinc-700 tracking-[0.1em]">
           DRAG <GripVertical size={9} className="inline -mt-0.5" /> TO REORDER OR MOVE BETWEEN SECTIONS — SAVE WHEN DONE
+        </p>
+        <p className="md:hidden font-mono text-[8px] text-zinc-700 tracking-[0.1em]">
+          DRAG <GripVertical size={9} className="inline -mt-0.5" /> TO REORDER
         </p>
         <div className="flex items-center gap-3 shrink-0">
           {orderSaved && (

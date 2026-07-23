@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
@@ -19,6 +20,7 @@ export default function ProductCard({
 }) {
   const { addItem, openCart } = useCart()
   const { toast } = useToast()
+  const [imgError, setImgError] = useState(false)
 
   const soldOut = isSoldOut(product) || product.isSoldOut === true
   const newBadge = isNew(product)
@@ -55,7 +57,7 @@ export default function ProductCard({
         {/* ── Image container ── */}
         <div className="relative aspect-[3/4] bg-zinc-900 border border-rc-border rounded-sm overflow-hidden mb-3">
 
-          {heroImage ? (
+          {heroImage && !imgError ? (
             <Image
               src={heroImage}
               alt={product.name}
@@ -63,6 +65,7 @@ export default function ProductCard({
               className="object-cover object-top transition-transform duration-500 group-hover:scale-[1.03]"
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
               priority={index < 2}
+              onError={() => setImgError(true)}
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center select-none">

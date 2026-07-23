@@ -45,6 +45,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   const [product,      setProduct]      = useState<Product | null>(null)
   const [notFound,     setNotFound]     = useState(false)
   const [activeImage,  setActiveImage]  = useState(0)
+  const [imgErrors,    setImgErrors]    = useState<Record<number, boolean>>({})
   const [selectedSize, setSelectedSize] = useState<string | null>(null)
   const [detailsOpen,  setDetailsOpen]  = useState(false)
   const [sizeError,    setSizeError]    = useState(false)
@@ -200,7 +201,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                     transition={{ duration: 0.28 }}
                     className="absolute inset-0"
                   >
-                    {hasImages ? (
+                    {hasImages && !imgErrors[activeImage] ? (
                       <Image
                         src={images[activeImage]}
                         alt={`${product.name} — view ${activeImage + 1}`}
@@ -208,6 +209,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                         className="object-contain"
                         sizes="(max-width: 1024px) 100vw, 58vw"
                         priority={activeImage === 0}
+                        onError={() => setImgErrors(prev => ({ ...prev, [activeImage]: true }))}
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center select-none">
@@ -274,13 +276,18 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                     }`}
                     aria-label={`View image ${i + 1}`}
                   >
-                    <Image
-                      src={src}
-                      alt={`${product.name} thumbnail ${i + 1}`}
-                      fill
-                      className="object-cover"
-                      sizes="64px"
-                    />
+                    {!imgErrors[i] ? (
+                      <Image
+                        src={src}
+                        alt={`${product.name} thumbnail ${i + 1}`}
+                        fill
+                        className="object-cover"
+                        sizes="64px"
+                        onError={() => setImgErrors(prev => ({ ...prev, [i]: true }))}
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center font-display text-xs text-zinc-700 select-none">RC</span>
+                    )}
                   </button>
                 ))}
               </div>

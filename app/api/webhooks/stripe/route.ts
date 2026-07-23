@@ -105,28 +105,24 @@ async function onPaymentSucceeded(pi: Stripe.PaymentIntent): Promise<void> {
     console.log(`[Webhook] ✓ Order marked paid for PI: ${pi.id}`)
   }
 
-  /* 2 — Decrement inventory */
+  /* 2 — Decrement inventory (atomic via Postgres function) */
   type MetaItem = { id: string; qty: number; size: string; name: string }
   const items: MetaItem[] = pi.metadata?.items ? JSON.parse(pi.metadata.items) : []
 
   for (const item of items) {
     try {
-      const { data: product } = await supabaseAdmin
-        .from('products')
-        .select('inventory, stock')
-        .eq('id', item.id)
-        .single()
+      const { data: result, error } = await supabaseAdmin.rpc('decrement_inventory', {
+        p_product_id: item.id,
+        p_size:       item.size,
+        p_qty:        item.qty,
+      })
 
-      if (product?.inventory) {
-        const inv = { ...(product.inventory as Record<string, number>) }
-        if (typeof inv[item.size] === 'number') {
-          inv[item.size] = Math.max(0, inv[item.size] - item.qty)
-        }
-        const newStock = Object.values(inv).reduce((s: number, v) => s + (v as number), 0)
-        await supabaseAdmin
-          .from('products')
-          .update({ inventory: inv, stock: newStock, updated_at: new Date().toISOString() })
-          .eq('id', item.id)
+      if (error) {
+        console.warn(`[Webhook] ⚠ RPC decrement_inventory error for ${item.name}:`, error.message)
+      } else if (result && !result.success) {
+        console.warn(`[Webhook] ⚠ Inventory decrement failed for ${item.name} (${item.size}): ${result.error} — available: ${result.available ?? 0}`)
+      } else {
+        console.log(`[Webhook] ✓ Inventory decremented: ${item.name} ${item.size} → ${result?.remaining} remaining`)
       }
     } catch (err) {
       console.warn(`[Webhook] ⚠ Inventory update failed for ${item.name}:`, err)

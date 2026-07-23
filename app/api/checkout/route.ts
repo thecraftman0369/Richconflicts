@@ -43,6 +43,28 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (totalCents < MIN_CHARGE_CENTS)
     return NextResponse.json({ error: `Minimum order is $${(MIN_CHARGE_CENTS / 100).toFixed(2)}.` }, { status: 422 })
 
+  /* ── Stock check — verify availability before creating a payment intent ── */
+  const productIds = [...new Set(items.map(i => i.productId))]
+  const { data: stockRows } = await supabaseAdmin
+    .from('products')
+    .select('id, name, inventory, stock')
+    .in('id', productIds)
+
+  if (stockRows) {
+    for (const item of items) {
+      const row = stockRows.find(r => r.id === item.productId)
+      if (!row) continue
+      const inv   = row.inventory as Record<string, number> | null
+      const avail = inv?.[item.size] ?? row.stock ?? 0
+      if (avail < item.quantity) {
+        const msg = avail === 0
+          ? `${item.name} (${item.size}) is sold out.`
+          : `Only ${avail} unit${avail === 1 ? '' : 's'} of ${item.name} (${item.size}) left in stock.`
+        return NextResponse.json({ error: msg }, { status: 422 })
+      }
+    }
+  }
+
   const breakdown: PaymentBreakdown = {
     subtotal: subtotalCents,
     tax:      taxCents,
